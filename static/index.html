@@ -7,92 +7,104 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0c0c10; --surface: #13131a; --surface2: #1a1a24;
-  --border: #2a2a3a; --accent: #FF9900; --accent2: #ff6b35;
-  --text: #f0f0f5; --text-dim: #6b6b8a;
-  --pos: #4ade80; --neg: #f87171; --user-bg: #1e1e30;
+  --bg:#0c0c10; --surface:#13131a; --surface2:#1a1a24;
+  --border:#2a2a3a; --accent:#FF9900; --accent2:#ff6b35;
+  --text:#f0f0f5; --text-dim:#6b6b8a;
+  --pos:#4ade80; --neg:#f87171; --user-bg:#1e1e30;
 }
-* { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text); height:100vh; display:flex; flex-direction:column; overflow:hidden; }
-header { background:var(--surface); border-bottom:1px solid var(--border); padding:14px 20px; display:flex; align-items:center; gap:12px; flex-shrink:0; }
-.logo-box { width:36px; height:36px; background:linear-gradient(135deg,var(--accent),var(--accent2)); border-radius:10px; display:flex; align-items:center; justify-content:center; font-family:'DM Mono',monospace; font-size:13px; font-weight:500; color:#131921; }
-.header-info h1 { font-size:15px; font-weight:700; letter-spacing:-0.3px; }
-.header-info p { font-size:11px; color:var(--text-dim); font-family:'DM Mono',monospace; }
-.status { margin-left:auto; display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-dim); }
-.dot { width:7px; height:7px; border-radius:50%; background:#4ade80; animation:blink 2s infinite; }
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
-#chat { flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:14px; scroll-behavior:smooth; }
-#chat::-webkit-scrollbar { width:3px; }
-#chat::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
-.msg { display:flex; gap:8px; animation:up 0.25s ease; max-width:85%; }
-@keyframes up { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-.msg.user { align-self:flex-end; flex-direction:row-reverse; max-width:75%; }
-.msg.ai { align-self:flex-start; }
-.msg.full { max-width:100%; width:100%; }
-.av { width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; font-family:'DM Mono',monospace; flex-shrink:0; }
-.msg.user .av { background:var(--accent); color:#131921; }
-.msg.ai .av { background:var(--surface2); border:1px solid var(--border); color:var(--text-dim); }
-.bubble { padding:10px 14px; border-radius:14px; font-size:14px; line-height:1.65; word-break:break-word; white-space:pre-wrap; }
-.msg.user .bubble { background:var(--user-bg); border:1px solid var(--border); border-top-right-radius:3px; }
-.msg.ai .bubble { background:var(--surface); border:1px solid var(--border); border-top-left-radius:3px; }
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.logo-box{width:36px;height:36px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:13px;font-weight:500;color:#131921;}
+.header-info h1{font-size:15px;font-weight:700;}
+.header-info p{font-size:11px;color:var(--text-dim);font-family:'DM Mono',monospace;}
+.status{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-dim);}
+.dot{width:7px;height:7px;border-radius:50%;background:#4ade80;animation:blink 2s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+#chat{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth;}
+#chat::-webkit-scrollbar{width:3px;}
+#chat::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.msg{display:flex;gap:8px;animation:up 0.25s ease;max-width:85%;}
+@keyframes up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.msg.user{align-self:flex-end;flex-direction:row-reverse;max-width:75%;}
+.msg.ai{align-self:flex-start;}
+.msg.full{max-width:100%;width:100%;}
+.av{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;font-family:'DM Mono',monospace;flex-shrink:0;}
+.msg.user .av{background:var(--accent);color:#131921;}
+.msg.ai .av{background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);}
+.bubble{padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.65;word-break:break-word;white-space:pre-wrap;}
+.msg.user .bubble{background:var(--user-bg);border:1px solid var(--border);border-top-right-radius:3px;}
+.msg.ai .bubble{background:var(--surface);border:1px solid var(--border);border-top-left-radius:3px;}
 
 /* 상황판 */
-.board { background:var(--surface); border:1px solid var(--border); border-radius:14px; border-top-left-radius:3px; padding:16px; font-size:14px; width:100%; }
-.board-title { font-size:12px; font-family:'DM Mono',monospace; color:var(--accent); margin-bottom:12px; letter-spacing:0.5px; }
-.board-row { display:flex; gap:8px; margin-bottom:10px; align-items:flex-start; flex-wrap:wrap; }
-.board-label { font-family:'DM Mono',monospace; font-size:12px; color:var(--accent); font-weight:500; min-width:90px; flex-shrink:0; padding-top:4px; }
-.board-options { display:flex; gap:6px; flex-wrap:wrap; }
-.opt-btn { padding:5px 13px; background:var(--surface2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer; transition:all 0.15s; }
-.opt-btn:hover { border-color:var(--accent); color:var(--accent); }
-.opt-btn.selected { background:var(--accent); border-color:var(--accent); color:#131921; font-weight:600; }
-.board-direct { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:8px 12px; color:var(--text); font-size:13px; font-family:'DM Sans',sans-serif; outline:none; margin-top:4px; }
-.board-direct:focus { border-color:var(--accent); }
-.board-confirm { margin-top:14px; padding:8px 22px; background:var(--accent); color:#131921; border:none; border-radius:20px; font-size:13px; font-weight:700; cursor:pointer; transition:opacity 0.15s; }
-.board-confirm:hover { opacity:0.85; }
+.board{background:var(--surface);border:1px solid var(--border);border-radius:14px;border-top-left-radius:3px;padding:16px;width:100%;}
+.board-title{font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);margin-bottom:12px;}
+.board-row{display:flex;gap:8px;margin-bottom:10px;align-items:flex-start;flex-wrap:wrap;}
+.board-label{font-family:'DM Mono',monospace;font-size:12px;color:var(--accent);font-weight:500;min-width:90px;flex-shrink:0;padding-top:4px;}
+.board-options{display:flex;gap:6px;flex-wrap:wrap;}
+.opt-btn{padding:5px 13px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;font-size:12px;color:var(--text);cursor:pointer;transition:all 0.15s;}
+.opt-btn:hover{border-color:var(--accent);color:var(--accent);}
+.opt-btn.selected{background:var(--accent);border-color:var(--accent);color:#131921;font-weight:600;}
+.board-direct{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;margin-top:4px;}
+.board-direct:focus{border-color:var(--accent);}
+.board-hint{font-size:11px;color:var(--text-dim);margin-top:6px;line-height:1.6;}
+.board-confirm{margin-top:14px;padding:8px 22px;background:var(--accent);color:#131921;border:none;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;transition:opacity 0.15s;}
+.board-confirm:hover{opacity:0.85;}
+
+/* 확인 버튼 3개 */
+.confirm-wrap{background:var(--surface);border:1px solid var(--border);border-radius:14px;border-top-left-radius:3px;padding:16px;width:100%;}
+.confirm-text{font-size:14px;line-height:1.7;margin-bottom:14px;white-space:pre-wrap;}
+.confirm-btns{display:flex;gap:8px;flex-wrap:wrap;}
+.confirm-btn{padding:8px 18px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all 0.15s;}
+.btn-yes{background:var(--accent);color:#131921;}
+.btn-yes:hover{opacity:0.85;}
+.btn-add{background:var(--surface2);border:1px solid var(--accent);color:var(--accent);}
+.btn-add:hover{background:var(--accent);color:#131921;}
+.btn-no{background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);}
+.btn-no:hover{border-color:var(--neg);color:var(--neg);}
 
 /* 제품 카드 */
-.products-wrap { width:100%; display:flex; flex-direction:column; gap:10px; }
-.products-title { font-size:13px; font-family:'DM Mono',monospace; color:var(--accent); padding:4px 0; letter-spacing:0.5px; }
-.product-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px; display:flex; gap:14px; transition:border-color 0.15s; }
-.product-card:hover { border-color:var(--accent); }
-.product-img { width:90px; height:90px; border-radius:8px; overflow:hidden; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; flex-shrink:0; cursor:pointer; font-size:36px; }
-.product-img img { width:100%; height:100%; object-fit:contain; }
-.product-info { flex:1; min-width:0; }
-.product-store { font-size:11px; color:var(--accent); margin-bottom:4px; font-family:'DM Mono',monospace; }
-.product-name { font-size:14px; font-weight:500; color:var(--text); margin-bottom:6px; line-height:1.4; }
-.product-price { font-size:20px; font-weight:700; color:var(--accent); margin-bottom:8px; font-family:'DM Mono',monospace; }
-.badges { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:10px; }
-.badge { padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600; }
-.badge-pos { background:rgba(74,222,128,0.1); color:var(--pos); border:1px solid rgba(74,222,128,0.2); }
-.badge-neg { background:rgba(248,113,113,0.1); color:var(--neg); border:1px solid rgba(248,113,113,0.2); }
-.badge-score { background:rgba(255,153,0,0.1); color:var(--accent); border:1px solid rgba(255,153,0,0.2); }
-.btn-view { display:inline-block; padding:6px 16px; background:var(--accent); color:#131921; border-radius:20px; font-size:12px; font-weight:700; text-decoration:none; }
-.btn-view:hover { opacity:0.85; }
+.products-wrap{width:100%;display:flex;flex-direction:column;gap:10px;}
+.products-title{font-size:13px;font-family:'DM Mono',monospace;color:var(--accent);padding:4px 0;}
+.product-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;gap:14px;transition:border-color 0.15s;}
+.product-card:hover{border-color:var(--accent);}
+.product-img{width:90px;height:90px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;font-size:36px;}
+.product-img img{width:100%;height:100%;object-fit:contain;}
+.product-info{flex:1;min-width:0;}
+.product-store{font-size:11px;color:var(--accent);margin-bottom:4px;font-family:'DM Mono',monospace;}
+.product-name{font-size:14px;font-weight:500;margin-bottom:6px;line-height:1.4;}
+.product-price{font-size:20px;font-weight:700;color:var(--accent);margin-bottom:8px;font-family:'DM Mono',monospace;}
+.badges{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;}
+.badge{padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;}
+.badge-pos{background:rgba(74,222,128,0.1);color:var(--pos);border:1px solid rgba(74,222,128,0.2);}
+.badge-neg{background:rgba(248,113,113,0.1);color:var(--neg);border:1px solid rgba(248,113,113,0.2);}
+.badge-score{background:rgba(255,153,0,0.1);color:var(--accent);border:1px solid rgba(255,153,0,0.2);}
+.btn-view{display:inline-block;padding:6px 16px;background:var(--accent);color:#131921;border-radius:20px;font-size:12px;font-weight:700;text-decoration:none;}
 
 /* 타이핑 */
-.typing { display:flex; gap:4px; align-items:center; padding:4px 0; }
-.typing span { width:5px; height:5px; border-radius:50%; background:var(--text-dim); animation:bounce 1.2s infinite; }
-.typing span:nth-child(2){animation-delay:.2s} .typing span:nth-child(3){animation-delay:.4s}
-@keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
+.typing{display:flex;gap:4px;align-items:center;padding:4px 0;}
+.typing span{width:5px;height:5px;border-radius:50%;background:var(--text-dim);animation:bounce 1.2s infinite;}
+.typing span:nth-child(2){animation-delay:.2s}.typing span:nth-child(3){animation-delay:.4s}
+@keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
 
 /* 웰컴 */
-.welcome { text-align:center; padding:40px 20px; color:var(--text-dim); }
-.welcome h2 { font-size:18px; color:var(--text); margin-bottom:8px; }
-.welcome p { font-size:13px; line-height:1.8; }
-.chips { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:16px; }
-.chip { padding:7px 14px; background:var(--surface2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text-dim); cursor:pointer; transition:all 0.15s; }
-.chip:hover { border-color:var(--accent); color:var(--text); }
+.welcome{text-align:center;padding:40px 20px;color:var(--text-dim);}
+.welcome h2{font-size:18px;color:var(--text);margin-bottom:8px;}
+.welcome p{font-size:13px;line-height:1.8;}
+.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px;}
+.chip{padding:7px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;font-size:12px;color:var(--text-dim);cursor:pointer;transition:all 0.15s;}
+.chip:hover{border-color:var(--accent);color:var(--text);}
 
 /* 입력 */
-.input-area { padding:14px 20px; border-top:1px solid var(--border); background:var(--surface); display:flex; gap:8px; align-items:flex-end; flex-shrink:0; }
-.input-wrap { flex:1; display:flex; align-items:center; background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:8px 14px; transition:border-color 0.15s; }
-.input-wrap:focus-within { border-color:var(--accent); }
-#input { flex:1; background:transparent; border:none; outline:none; color:var(--text); font-family:'DM Sans',sans-serif; font-size:14px; resize:none; line-height:1.5; max-height:100px; min-height:22px; }
-#input::placeholder { color:var(--text-dim); }
-#sendBtn { width:36px; height:36px; background:var(--accent); border:none; border-radius:10px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:opacity 0.15s; }
-#sendBtn:hover { opacity:0.85; }
-#sendBtn:disabled { opacity:0.3; cursor:not-allowed; }
-#sendBtn svg { width:15px; height:15px; fill:#131921; }
+.input-area{padding:14px 20px;border-top:1px solid var(--border);background:var(--surface);display:flex;gap:8px;align-items:flex-end;flex-shrink:0;}
+.input-wrap{flex:1;display:flex;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:8px 14px;transition:border-color 0.15s;}
+.input-wrap:focus-within{border-color:var(--accent);}
+#input{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;resize:none;line-height:1.5;max-height:100px;min-height:22px;}
+#input::placeholder{color:var(--text-dim);}
+#sendBtn{width:36px;height:36px;background:var(--accent);border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity 0.15s;}
+#sendBtn:hover{opacity:0.85;}
+#sendBtn:disabled{opacity:0.3;cursor:not-allowed;}
+#sendBtn svg{width:15px;height:15px;fill:#131921;}
 </style>
 </head>
 <body>
@@ -104,20 +116,18 @@ header { background:var(--surface); border-bottom:1px solid var(--border); paddi
   </div>
   <div class="status"><div class="dot"></div><span>v3 live</span></div>
 </header>
-
 <div id="chat">
   <div class="welcome" id="welcome">
     <h2>안녕하세요 😊</h2>
     <p>찾으시는 제품을 말씀해주세요<br>리뷰 역추적으로 최적 제품을 찾아드려요</p>
     <div class="chips">
+      <div class="chip" onclick="quickSend('아기 독서대 찾아요')">📚 아기 독서대</div>
       <div class="chip" onclick="quickSend('여행용 가방 찾아요')">👜 여행용 가방</div>
       <div class="chip" onclick="quickSend('발열 없는 노트북')">💻 발열 없는 노트북</div>
-      <div class="chip" onclick="quickSend('아이 독서대')">📚 아이 독서대</div>
       <div class="chip" onclick="quickSend('baby book stand')">🇺🇸 baby book stand</div>
     </div>
   </div>
 </div>
-
 <div class="input-area">
   <div class="input-wrap">
     <textarea id="input" placeholder="제품을 입력하세요..." rows="1"></textarea>
@@ -126,7 +136,6 @@ header { background:var(--surface); border-bottom:1px solid var(--border); paddi
     <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
   </button>
 </div>
-
 <script>
 const chat = document.getElementById('chat');
 const input = document.getElementById('input');
@@ -142,8 +151,8 @@ input.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
 });
 
-function removeWelcome() { document.getElementById('welcome')?.remove(); }
 function scroll() { chat.scrollTop = chat.scrollHeight; }
+function removeWelcome() { document.getElementById('welcome')?.remove(); }
 
 function addUserMsg(text) {
   removeWelcome();
@@ -160,33 +169,19 @@ function addTyping() {
   chat.appendChild(msg); scroll();
 }
 
+// 상황판 파싱
 function isBoard(text) {
-  return text.includes('[A ') && text.includes('[B ') && text.includes('[D 직접입력]');
+  return text.includes('[A ') && text.includes('[D 예산') && text.includes('[E 직접입력]');
 }
 
 function renderBoard(text) {
-  // 공감 멘트 분리 (상황판 앞에 있는 텍스트)
-  const boardStart = text.indexOf('[A ');
-  const empathy = boardStart > 0 ? text.substring(0, boardStart).trim() : '';
-  const boardText = boardStart > 0 ? text.substring(boardStart) : text;
-
-  const lines = boardText.split('\n').filter(l => l.trim());
+  const lines = text.split('\n').filter(l => l.trim());
   const wrap = document.createElement('div');
   wrap.className = 'msg ai full';
   const av = document.createElement('div');
   av.className = 'av'; av.textContent = 'DE';
   const board = document.createElement('div');
   board.className = 'board';
-  // 공감 멘트 표시
-  if (empathy) {
-    const emp = document.createElement('div');
-    emp.className = 'bubble';
-    emp.style.marginBottom = '10px';
-    emp.style.background = 'var(--surface2)';
-    emp.textContent = empathy;
-    board.appendChild(emp);
-  }
-
   const title = document.createElement('div');
   title.className = 'board-title';
   title.textContent = '▸ 조건을 선택해주세요';
@@ -194,13 +189,15 @@ function renderBoard(text) {
 
   const selections = {};
   let directInput = null;
+  let directHint = '';
 
   lines.forEach(line => {
-    const match = line.match(/\[([A-D][^\]]*)\]\s*(.+)/);
+    const match = line.match(/\[([A-E][^\]]*)\]\s*(.*)/);
     if (!match) return;
     const label = match[1].trim();
     const content = match[2].trim();
     const key = label[0];
+
     const row = document.createElement('div');
     row.className = 'board-row';
     const lbl = document.createElement('div');
@@ -208,17 +205,28 @@ function renderBoard(text) {
     lbl.textContent = `[${label}]`;
     row.appendChild(lbl);
 
-    if (key === 'D') {
+    if (key === 'E') {
+      // 직접입력 + 힌트
       const inp = document.createElement('input');
       inp.className = 'board-direct';
-      inp.placeholder = '원하는 조건을 직접 입력하세요';
+      inp.placeholder = '직접 입력하세요...';
       inp.type = 'text';
       directInput = inp;
       row.appendChild(inp);
+      board.appendChild(row);
+
+      // 힌트 문구
+      if (content) {
+        directHint = content;
+        const hint = document.createElement('div');
+        hint.className = 'board-hint';
+        hint.textContent = content;
+        board.appendChild(hint);
+      }
     } else {
       const opts = document.createElement('div');
       opts.className = 'board-options';
-      content.split('/').map(o => o.trim()).forEach(opt => {
+      content.split('/').map(o => o.trim()).filter(Boolean).forEach(opt => {
         const btn = document.createElement('div');
         btn.className = 'opt-btn';
         btn.textContent = opt;
@@ -230,17 +238,17 @@ function renderBoard(text) {
         opts.appendChild(btn);
       });
       row.appendChild(opts);
+      board.appendChild(row);
     }
-    board.appendChild(row);
   });
 
   const confirmBtn = document.createElement('button');
   confirmBtn.className = 'board-confirm';
-  confirmBtn.textContent = '검색하기 →';
+  confirmBtn.textContent = '선택 완료 →';
   confirmBtn.onclick = () => {
     const parts = [];
-    ['A','B','C'].forEach(k => { if (selections[k]) parts.push(`${k}:${selections[k]}`); });
-    if (directInput && directInput.value.trim()) parts.push(`D:${directInput.value.trim()}`);
+    ['A','B','C','D'].forEach(k => { if (selections[k]) parts.push(`${k}:${selections[k]}`); });
+    if (directInput && directInput.value.trim()) parts.push(`E:${directInput.value.trim()}`);
     if (parts.length === 0) { alert('조건을 하나 이상 선택해주세요'); return; }
     send(parts.join(' '));
   };
@@ -249,6 +257,50 @@ function renderBoard(text) {
   return wrap;
 }
 
+// 확인 버튼 3개
+function isConfirm(text) {
+  return text.includes('CONFIRM_BUTTONS');
+}
+
+function renderConfirm(text) {
+  const summaryText = text.replace('CONFIRM_BUTTONS', '').trim();
+  const wrap = document.createElement('div');
+  wrap.className = 'msg ai full';
+  const av = document.createElement('div');
+  av.className = 'av'; av.textContent = 'DE';
+  const box = document.createElement('div');
+  box.className = 'confirm-wrap';
+
+  const txt = document.createElement('div');
+  txt.className = 'confirm-text';
+  txt.textContent = summaryText;
+  box.appendChild(txt);
+
+  const btns = document.createElement('div');
+  btns.className = 'confirm-btns';
+
+  const yes = document.createElement('button');
+  yes.className = 'confirm-btn btn-yes';
+  yes.textContent = '네, 찾아주세요! 🔍';
+  yes.onclick = () => send('네');
+
+  const add = document.createElement('button');
+  add.className = 'confirm-btn btn-add';
+  add.textContent = '추가할게요 ✏️';
+  add.onclick = () => send('추가');
+
+  const no = document.createElement('button');
+  no.className = 'confirm-btn btn-no';
+  no.textContent = '다시 선택할게요';
+  no.onclick = () => send('아니요');
+
+  btns.appendChild(yes); btns.appendChild(add); btns.appendChild(no);
+  box.appendChild(btns);
+  wrap.appendChild(av); wrap.appendChild(box);
+  return wrap;
+}
+
+// 제품 카드
 function parseProducts(text) {
   const lines = text.split('\n');
   const products = [];
@@ -257,11 +309,11 @@ function parseProducts(text) {
     const tm = line.match(/^(\d+)\. (.+)/);
     if (tm) {
       if (cur) products.push(cur);
-      cur = { rank:parseInt(tm[1]), title:tm[2].trim(), price:'0', store:'', positive:'0', negative:'0', score:'0', link:'', image_url:'' };
+      cur = { rank:parseInt(tm[1]), title:tm[2].trim(), price:'', store:'', positive:'0', negative:'0', score:'0', link:'', image_url:'' };
       continue;
     }
     if (!cur) continue;
-    const price = line.match(/[Pp]rice[:\s]+\$?([0-9,\.]+)/);
+    const price = line.match(/[Pp]rice[:\s]+\$?([0-9,\.]+[원만]?)/);
     if (price) cur.price = price[1];
     const rev = line.match(/[Pp]ositive[:\s]+(\d+)[^\d]+[Nn]egative[:\s]+(\d+)[^\d]+[Ss]core[:\s]+([\d.]+)/);
     if (rev) { cur.positive=rev[1]; cur.negative=rev[2]; cur.score=rev[3]; }
@@ -303,11 +355,10 @@ function renderProducts(products) {
 
     const info = document.createElement('div');
     info.className = 'product-info';
-    const priceStr = p.price && p.price !== '0' ? (p.price.includes('$') ? p.price : '$'+p.price) : '';
     info.innerHTML = `
       <div class="product-store">${p.store||'Amazon'}</div>
       <div class="product-name">${p.title}</div>
-      ${priceStr ? `<div class="product-price">${priceStr}</div>` : ''}
+      ${p.price ? `<div class="product-price">${p.price}</div>` : ''}
       <div class="badges">
         <span class="badge badge-pos">👍 ${p.positive}</span>
         <span class="badge badge-neg">👎 ${p.negative}</span>
@@ -323,8 +374,23 @@ function renderProducts(products) {
 }
 
 function addAiMsg(text) {
-  if (isBoard(text)) {
-    chat.appendChild(renderBoard(text));
+  if (isConfirm(text)) {
+    chat.appendChild(renderConfirm(text));
+  } else if (isBoard(text)) {
+    // 공감 멘트 분리
+    const boardStart = text.indexOf('[A ');
+    if (boardStart > 0) {
+      const empathy = text.substring(0, boardStart).trim();
+      if (empathy) {
+        const msg = document.createElement('div');
+        msg.className = 'msg ai';
+        msg.innerHTML = `<div class="av">DE</div><div class="bubble">${empathy}</div>`;
+        chat.appendChild(msg);
+      }
+      chat.appendChild(renderBoard(text.substring(boardStart)));
+    } else {
+      chat.appendChild(renderBoard(text));
+    }
   } else {
     const prods = parseProducts(text);
     if (prods.length > 0 && text.match(/^\d+\./m)) {
@@ -356,7 +422,7 @@ async function send(overrideText) {
     const data = await res.json();
     document.getElementById('typing')?.remove();
     session = data.session;
-    addAiMsg(data.response || data.reply || '');
+    addAiMsg(data.response || '');
   } catch(e) {
     document.getElementById('typing')?.remove();
     addAiMsg('연결 오류가 발생했어요. 다시 시도해주세요.');
