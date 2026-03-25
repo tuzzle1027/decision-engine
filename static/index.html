@@ -101,11 +101,11 @@ header{
   padding:10px 14px;border-radius:14px;font-size:14px;
   line-height:1.65;word-break:break-word;white-space:pre-wrap;
 }
-.msg.user .bubble{background:var(--accent);color:white;border-top-right-radius:3px;}
-.msg.ai .bubble{background:var(--surface);border:1px solid var(--border);border-top-left-radius:3px;color:var(--text);}
+.msg.user .bubble{background:var(--accent);color:white;border-top-right-radius:3px;font-weight:500;}
+.msg.ai .bubble{background:var(--surface2);border:1px solid var(--border);border-top-left-radius:3px;color:var(--text);}
 
 /* 상황판 */
-.board{background:var(--surface);border:1px solid var(--border);border-radius:14px;border-top-left-radius:3px;padding:16px;width:100%;}
+.board{background:var(--surface2);border:1px solid var(--border);border-radius:14px;border-top-left-radius:3px;padding:16px;width:100%;}
 .board-title{font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);margin-bottom:12px;font-weight:600;}
 .board-row{display:flex;gap:8px;margin-bottom:10px;align-items:flex-start;flex-wrap:wrap;}
 .board-label{font-family:'DM Mono',monospace;font-size:12px;color:var(--accent);font-weight:600;min-width:90px;flex-shrink:0;padding-top:4px;}
@@ -132,7 +132,7 @@ header{
 .board-confirm:hover{opacity:0.85;}
 
 /* 확인 버튼 */
-.confirm-wrap{background:var(--surface);border:1px solid var(--border);border-radius:14px;border-top-left-radius:3px;padding:16px;width:100%;}
+.confirm-wrap{background:var(--surface2);border:1px solid var(--border);border-radius:14px;border-top-left-radius:3px;padding:16px;width:100%;}
 .confirm-text{font-size:14px;line-height:1.7;margin-bottom:14px;white-space:pre-wrap;color:var(--text);}
 .confirm-btns{display:flex;gap:8px;flex-wrap:wrap;}
 .confirm-btn{padding:8px 18px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all 0.15s;}
@@ -353,13 +353,6 @@ function renderBoard(fullText) {
       directInput = inp;
       row.appendChild(inp);
       board.appendChild(row);
-
-      if (content) {
-        const hint = document.createElement('div');
-        hint.className = 'board-hint';
-        hint.textContent = content;
-        board.appendChild(hint);
-      }
 
       const help = document.createElement('div');
       help.className = 'board-help';
