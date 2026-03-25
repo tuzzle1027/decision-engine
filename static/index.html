@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Decision Engine</title>
+<title>Picko</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -11,18 +11,20 @@
   --surface:#faf7f4;
   --surface2:#ede8e2;
   --border:#d8d0c8;
-  --accent:#b89880;
-  --accent-dark:#8a6f5e;
-  --accent-btn:#c4a882;
+  --accent:#8a6f5e;
   --text:#2c2418;
   --text-dim:#9a8878;
+  --user-bubble:#c2b099;
   --pos:#2d7a3e;
   --neg:#c0392b;
-  --user-bg:#d4c4b4;
   --selected:#8a6f5e;
+  --max-width:720px;
 }
 *{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+body{
+  font-family:'DM Sans',sans-serif;background:var(--bg);
+  color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden;
+}
 
 /* ── 시작 페이지 ── */
 #start-page{
@@ -32,15 +34,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);hei
 }
 #start-page.hidden{opacity:0;pointer-events:none;}
 .start-logo{font-size:40px;margin-bottom:6px;}
-.start-title{font-size:26px;font-weight:700;color:var(--text);margin-bottom:6px;}
+.start-title{font-size:28px;font-weight:700;color:var(--text);margin-bottom:6px;}
 .start-sub{font-size:13px;color:var(--text-dim);margin-bottom:36px;}
 .start-input-wrap{
-  width:100%;max-width:600px;background:var(--surface);
+  width:100%;max-width:var(--max-width);background:var(--surface);
   border:1.5px solid var(--border);border-radius:16px;padding:14px 18px;
   display:flex;flex-direction:column;gap:12px;
   box-shadow:0 2px 16px rgba(0,0,0,0.05);transition:border-color 0.2s;
 }
-.start-input-wrap:focus-within{border-color:var(--accent-dark);}
+.start-input-wrap:focus-within{border-color:var(--accent);}
 #start-input{
   width:100%;background:transparent;border:none;outline:none;
   font-family:'DM Sans',sans-serif;font-size:15px;color:var(--text);
@@ -55,58 +57,72 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);hei
 }
 .start-send-btn:hover{opacity:0.85;}
 .start-send-btn svg{width:14px;height:14px;fill:white;}
-.start-chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:20px;max-width:600px;}
+.start-chips{
+  display:flex;flex-wrap:wrap;gap:8px;justify-content:center;
+  margin-top:20px;max-width:var(--max-width);
+}
 .start-chip{
   padding:7px 16px;background:var(--surface);border:1px solid var(--border);
   border-radius:20px;font-size:13px;color:var(--text-dim);cursor:pointer;
   transition:all 0.15s;box-shadow:0 1px 4px rgba(0,0,0,0.04);
 }
-.start-chip:hover{border-color:var(--accent-dark);color:var(--accent-dark);}
+.start-chip:hover{border-color:var(--accent);color:var(--accent);}
 
 /* ── 채팅 페이지 ── */
 #chat-page{display:flex;flex-direction:column;height:100%;opacity:0;transition:opacity 0.4s ease;}
 #chat-page.visible{opacity:1;}
 
+/* 헤더 */
 header{
   background:var(--surface);border-bottom:1px solid var(--border);
-  padding:10px 20px;display:flex;align-items:center;gap:10px;flex-shrink:0;
+  padding:10px 0;flex-shrink:0;
+}
+.header-inner{
+  max-width:var(--max-width);margin:0 auto;padding:0 20px;
+  display:flex;align-items:center;gap:10px;
 }
 .logo-wrap{display:flex;align-items:center;gap:8px;}
-.logo-emoji{font-size:24px;}
+.logo-emoji{font-size:22px;}
 .header-info h1{font-size:15px;font-weight:700;color:var(--text);}
 .header-info p{font-size:11px;color:var(--text-dim);}
 .status{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-dim);}
 .dot{width:6px;height:6px;border-radius:50%;background:#2d7a3e;animation:blink 2s infinite;}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
 
+/* 채팅 영역 */
 #chat{
-  flex:1;overflow-y:auto;padding:20px;
-  display:flex;flex-direction:column;gap:14px;
+  flex:1;overflow-y:auto;padding:20px 0;
   background:var(--bg);scroll-behavior:smooth;
+  display:flex;flex-direction:column;gap:14px;
 }
 #chat::-webkit-scrollbar{width:4px;}
 #chat::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
 
-.msg{display:flex;gap:8px;animation:up 0.25s ease;max-width:80%;}
+/* 메시지 - max-width 센터 정렬 */
+.msg-wrap{width:100%;display:flex;justify-content:center;}
+.msg-inner{width:100%;max-width:var(--max-width);padding:0 20px;display:flex;gap:8px;}
+.msg-inner.user{flex-direction:row-reverse;}
+.msg-inner.full{align-items:flex-start;}
+
+.msg{animation:up 0.25s ease;}
 @keyframes up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-.msg.user{align-self:flex-end;flex-direction:row-reverse;max-width:70%;}
-.msg.ai{align-self:flex-start;}
-.msg.full{max-width:100%;width:100%;}
+
 .av{
   width:30px;height:30px;border-radius:8px;
   display:flex;align-items:center;justify-content:center;
   font-size:12px;font-weight:700;flex-shrink:0;
 }
-.msg.user .av{background:var(--selected);color:white;font-family:'DM Mono',monospace;font-size:11px;}
-.msg.ai .av{background:var(--surface);border:1px solid var(--border);font-size:16px;}
+.av-ai{background:var(--surface);border:1px solid var(--border);font-size:16px;}
+.av-user{background:var(--user-bubble);color:white;font-family:'DM Mono',monospace;font-size:11px;}
+
 .bubble{
   padding:10px 14px;border-radius:14px;font-size:14px;
-  line-height:1.65;word-break:break-word;white-space:pre-wrap;
+  line-height:1.65;word-break:break-word;white-space:pre-wrap;max-width:85%;
 }
-.msg.user .bubble{background:var(--user-bg);color:var(--text);border-top-right-radius:3px;}
-.msg.ai .bubble{background:var(--surface);border:1px solid var(--border);border-top-left-radius:3px;color:var(--text);}
+.bubble-ai{background:var(--surface);border:1px solid var(--border);border-top-left-radius:3px;color:var(--text);}
+.bubble-user{background:var(--user-bubble);color:white;border-top-right-radius:3px;}
 
-/* ── 상황판 ── */
+/* 상황판 */
 .board{background:var(--surface2);border:1px solid var(--border);border-radius:14px;border-top-left-radius:3px;padding:18px;width:100%;}
 .board-title{font-size:12px;color:var(--text-dim);margin-bottom:14px;font-weight:500;display:flex;align-items:center;gap:6px;}
 .board-title::before{content:'▶';font-size:10px;}
@@ -118,22 +134,22 @@ header{
   padding:6px 14px;background:var(--surface);border:1px solid var(--border);
   border-radius:20px;font-size:13px;color:var(--text-dim);cursor:pointer;transition:all 0.15s;
 }
-.opt-btn:hover{border-color:var(--accent-dark);color:var(--text);}
+.opt-btn:hover{border-color:var(--accent);color:var(--text);}
 .opt-btn.selected{background:var(--selected);border-color:var(--selected);color:white;font-weight:600;}
 .board-direct{
   flex:1;background:var(--surface);border:1px solid var(--border);
   border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;
   font-family:'DM Sans',sans-serif;outline:none;
 }
-.board-direct:focus{border-color:var(--accent-dark);}
-.board-help{font-size:12px;color:var(--accent-dark);margin-top:10px;font-weight:500;}
+.board-direct:focus{border-color:var(--accent);}
+.board-help{font-size:12px;color:var(--accent);margin-top:10px;font-weight:500;}
 .board-confirm{
   margin-top:16px;padding:8px 24px;background:var(--selected);color:white;
   border:none;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;transition:opacity 0.15s;
 }
 .board-confirm:hover{opacity:0.85;}
 
-/* ── 확인 버튼 ── */
+/* 확인 버튼 */
 .confirm-wrap{background:var(--surface2);border:1px solid var(--border);border-radius:14px;border-top-left-radius:3px;padding:16px;width:100%;}
 .confirm-text{font-size:14px;line-height:1.75;margin-bottom:14px;white-space:pre-wrap;color:var(--text);}
 .confirm-btns{display:flex;gap:8px;flex-wrap:wrap;}
@@ -145,14 +161,14 @@ header{
 .btn-no{background:var(--surface);border:1px solid var(--border);color:var(--text-dim);}
 .btn-no:hover{border-color:var(--neg);color:var(--neg);}
 
-/* ── 제품 카드 ── */
+/* 제품 카드 */
 .products-wrap{width:100%;display:flex;flex-direction:column;gap:10px;}
-.products-title{font-size:13px;color:var(--accent-dark);padding:4px 0;font-weight:600;}
+.products-title{font-size:13px;color:var(--accent);padding:4px 0;font-weight:600;}
 .product-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;gap:14px;transition:border-color 0.15s;}
-.product-card:hover{border-color:var(--accent-dark);}
+.product-card:hover{border-color:var(--accent);}
 .product-img{width:80px;height:80px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;font-size:32px;}
 .product-info{flex:1;min-width:0;}
-.product-store{font-size:11px;color:var(--accent-dark);margin-bottom:4px;}
+.product-store{font-size:11px;color:var(--accent);margin-bottom:4px;}
 .product-name{font-size:14px;font-weight:500;margin-bottom:6px;line-height:1.4;color:var(--text);}
 .product-price{font-size:18px;font-weight:700;color:var(--selected);margin-bottom:8px;}
 .badges{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;}
@@ -162,25 +178,30 @@ header{
 .badge-score{background:rgba(138,111,94,0.1);color:var(--selected);border:1px solid rgba(138,111,94,0.2);}
 .btn-view{display:inline-block;padding:6px 14px;background:var(--selected);color:white;border-radius:20px;font-size:12px;font-weight:600;text-decoration:none;}
 
-/* ── 타이핑 ── */
+/* 타이핑 */
 .typing{display:flex;gap:4px;align-items:center;padding:4px 0;}
 .typing span{width:5px;height:5px;border-radius:50%;background:var(--text-dim);animation:bounce 1.2s infinite;}
 .typing span:nth-child(2){animation-delay:.2s}.typing span:nth-child(3){animation-delay:.4s}
 @keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
 
-/* ── 입력창 ── */
+/* 입력창 - 하단 고정 */
 .input-area{
-  padding:12px 20px;border-top:1px solid var(--border);
-  background:var(--surface);display:flex;gap:8px;align-items:flex-end;flex-shrink:0;
+  background:var(--surface);border-top:1px solid var(--border);
+  padding:12px 0;flex-shrink:0;
+}
+.input-inner{
+  max-width:var(--max-width);margin:0 auto;padding:0 20px;
+  display:flex;gap:8px;align-items:flex-end;
 }
 .input-wrap{
   flex:1;display:flex;align-items:center;background:var(--surface2);
   border:1.5px solid var(--border);border-radius:12px;padding:8px 14px;transition:border-color 0.2s;
 }
-.input-wrap:focus-within{border-color:var(--accent-dark);}
+.input-wrap:focus-within{border-color:var(--accent);}
 #input{
   flex:1;background:transparent;border:none;outline:none;color:var(--text);
-  font-family:'DM Sans',sans-serif;font-size:14px;resize:none;line-height:1.5;max-height:100px;min-height:22px;
+  font-family:'DM Sans',sans-serif;font-size:14px;resize:none;
+  line-height:1.5;max-height:100px;min-height:22px;
 }
 #input::placeholder{color:var(--text-dim);}
 #sendBtn{
@@ -198,7 +219,7 @@ header{
 <!-- 시작 페이지 -->
 <div id="start-page">
   <div class="start-logo">🛍️</div>
-  <h1 class="start-title">Decision Engine</h1>
+  <h1 class="start-title">Picko</h1>
   <p class="start-sub">리뷰 역추적으로 최적의 제품을 찾아드려요</p>
   <div class="start-input-wrap">
     <textarea id="start-input" placeholder="찾으시는 제품을 입력해주세요..." rows="1"></textarea>
@@ -221,23 +242,29 @@ header{
 <!-- 채팅 페이지 -->
 <div id="chat-page">
   <header>
-    <div class="logo-wrap">
-      <span class="logo-emoji">🛍️</span>
-      <div class="header-info">
-        <h1>Shopping Shopping</h1>
-        <p>AI Review Reverse Engine</p>
+    <div class="header-inner">
+      <div class="logo-wrap">
+        <span class="logo-emoji">🛍️</span>
+        <div class="header-info">
+          <h1>Picko</h1>
+          <p>AI Review Reverse Engine</p>
+        </div>
       </div>
+      <div class="status"><div class="dot"></div><span>v3 live</span></div>
     </div>
-    <div class="status"><div class="dot"></div><span>v3 live</span></div>
   </header>
+
   <div id="chat"></div>
+
   <div class="input-area">
-    <div class="input-wrap">
-      <textarea id="input" placeholder="메시지를 입력하세요..." rows="1"></textarea>
+    <div class="input-inner">
+      <div class="input-wrap">
+        <textarea id="input" placeholder="메시지를 입력하세요..." rows="1"></textarea>
+      </div>
+      <button id="sendBtn" onclick="send()">
+        <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+      </button>
     </div>
-    <button id="sendBtn" onclick="send()">
-      <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
-    </button>
   </div>
 </div>
 
@@ -285,22 +312,51 @@ input.addEventListener('keydown', e => {
 
 function scroll() { chat.scrollTop = chat.scrollHeight; }
 
+function aiWrap(inner) {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap';
+  const mi = document.createElement('div');
+  mi.className = 'msg-inner';
+  mi.appendChild(inner);
+  wrap.appendChild(mi);
+  return wrap;
+}
+
 function addUserMsg(text) {
-  const msg = document.createElement('div');
-  msg.className = 'msg user';
-  msg.innerHTML = `<div class="av">나</div><div class="bubble">${text}</div>`;
-  chat.appendChild(msg); scroll();
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap';
+  const mi = document.createElement('div');
+  mi.className = 'msg-inner user';
+  const av = document.createElement('div');
+  av.className = 'av av-user';
+  av.textContent = '나';
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble bubble-user';
+  bubble.textContent = text;
+  mi.appendChild(av);
+  mi.appendChild(bubble);
+  wrap.appendChild(mi);
+  chat.appendChild(wrap);
+  scroll();
 }
 
 function addTyping() {
-  const msg = document.createElement('div');
-  msg.className = 'msg ai'; msg.id = 'typing';
-  msg.innerHTML = `<div class="av">🛍️</div><div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div>`;
-  chat.appendChild(msg); scroll();
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap'; wrap.id = 'typing';
+  const mi = document.createElement('div');
+  mi.className = 'msg-inner';
+  const av = document.createElement('div');
+  av.className = 'av av-ai'; av.textContent = '🛍️';
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble bubble-ai';
+  bubble.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+  mi.appendChild(av); mi.appendChild(bubble);
+  wrap.appendChild(mi);
+  chat.appendChild(wrap); scroll();
 }
 
 function isBoard(text) {
-  return text.includes('[A ') && text.includes('[D 예산') && text.includes('[E 직접입력]');
+  return text.includes('[A ') && text.includes('[D ') && text.includes('[E 직접입력]');
 }
 
 function renderBoard(fullText) {
@@ -309,17 +365,27 @@ function renderBoard(fullText) {
   const boardText = boardStart > 0 ? fullText.substring(boardStart) : fullText;
 
   if (empathy) {
-    const msg = document.createElement('div');
-    msg.className = 'msg ai';
-    msg.innerHTML = `<div class="av">🛍️</div><div class="bubble">${empathy}</div>`;
-    chat.appendChild(msg);
+    const wrap = document.createElement('div');
+    wrap.className = 'msg-wrap';
+    const mi = document.createElement('div');
+    mi.className = 'msg-inner';
+    const av = document.createElement('div');
+    av.className = 'av av-ai'; av.textContent = '🛍️';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble bubble-ai';
+    bubble.textContent = empathy;
+    mi.appendChild(av); mi.appendChild(bubble);
+    wrap.appendChild(mi);
+    chat.appendChild(wrap);
   }
 
   const lines = boardText.split('\n').filter(l => l.trim());
   const wrap = document.createElement('div');
-  wrap.className = 'msg ai full';
+  wrap.className = 'msg-wrap';
+  const mi = document.createElement('div');
+  mi.className = 'msg-inner full';
   const av = document.createElement('div');
-  av.className = 'av'; av.textContent = '🛍️';
+  av.className = 'av av-ai'; av.textContent = '🛍️';
   const board = document.createElement('div');
   board.className = 'board';
   const title = document.createElement('div');
@@ -336,7 +402,6 @@ function renderBoard(fullText) {
     const label = match[1].trim();
     const content = match[2].trim();
     const key = label[0];
-
     const row = document.createElement('div');
     row.className = 'board-row';
     const lbl = document.createElement('div');
@@ -352,7 +417,6 @@ function renderBoard(fullText) {
       directInput = inp;
       row.appendChild(inp);
       board.appendChild(row);
-
       const help = document.createElement('div');
       help.className = 'board-help';
       help.textContent = '✍️ 여기에 적어주신 한 마디가 더 정확한 제품을 찾는데 도움이 됩니다';
@@ -387,7 +451,8 @@ function renderBoard(fullText) {
     send(parts.join(' '));
   };
   board.appendChild(confirmBtn);
-  wrap.appendChild(av); wrap.appendChild(board);
+  mi.appendChild(av); mi.appendChild(board);
+  wrap.appendChild(mi);
   chat.appendChild(wrap);
 }
 
@@ -396,9 +461,11 @@ function isConfirm(text) { return text.includes('CONFIRM_BUTTONS'); }
 function renderConfirm(text) {
   const summaryText = text.replace('CONFIRM_BUTTONS', '').trim();
   const wrap = document.createElement('div');
-  wrap.className = 'msg ai full';
+  wrap.className = 'msg-wrap';
+  const mi = document.createElement('div');
+  mi.className = 'msg-inner full';
   const av = document.createElement('div');
-  av.className = 'av'; av.textContent = '🛍️';
+  av.className = 'av av-ai'; av.textContent = '🛍️';
   const box = document.createElement('div');
   box.className = 'confirm-wrap';
   const txt = document.createElement('div');
@@ -421,7 +488,8 @@ function renderConfirm(text) {
   no.onclick = () => send('아니요');
   btns.appendChild(yes); btns.appendChild(add); btns.appendChild(no);
   box.appendChild(btns);
-  wrap.appendChild(av); wrap.appendChild(box);
+  mi.appendChild(av); mi.appendChild(box);
+  wrap.appendChild(mi);
   return wrap;
 }
 
@@ -439,8 +507,6 @@ function parseProducts(text) {
     if (!cur) continue;
     const price = line.match(/가격[:\s]+([0-9,원~]+)/);
     if (price) cur.price = price[1];
-    const store = line.match(/[Ss]tore[:\s]+(.+)/);
-    if (store) cur.store = store[1].trim();
     const lnk = line.match(/[Ll]ink[:\s]+(.+)/);
     if (lnk) cur.link = lnk[1].trim();
   }
@@ -450,9 +516,11 @@ function parseProducts(text) {
 
 function renderProducts(products) {
   const wrap = document.createElement('div');
-  wrap.className = 'msg ai full';
+  wrap.className = 'msg-wrap';
+  const mi = document.createElement('div');
+  mi.className = 'msg-inner full';
   const av = document.createElement('div');
-  av.className = 'av'; av.textContent = '🛍️';
+  av.className = 'av av-ai'; av.textContent = '🛍️';
   const pw = document.createElement('div');
   pw.className = 'products-wrap';
   const title = document.createElement('div');
@@ -482,7 +550,8 @@ function renderProducts(products) {
     card.appendChild(imgBox); card.appendChild(info);
     pw.appendChild(card);
   });
-  wrap.appendChild(av); wrap.appendChild(pw);
+  mi.appendChild(av); mi.appendChild(pw);
+  wrap.appendChild(mi);
   return wrap;
 }
 
@@ -496,10 +565,18 @@ function addAiMsg(text) {
     if (prods.length > 0 && text.match(/^\d+\./m)) {
       chat.appendChild(renderProducts(prods));
     } else {
-      const msg = document.createElement('div');
-      msg.className = 'msg ai';
-      msg.innerHTML = `<div class="av">🛍️</div><div class="bubble">${text}</div>`;
-      chat.appendChild(msg);
+      const wrap = document.createElement('div');
+      wrap.className = 'msg-wrap';
+      const mi = document.createElement('div');
+      mi.className = 'msg-inner';
+      const av = document.createElement('div');
+      av.className = 'av av-ai'; av.textContent = '🛍️';
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble bubble-ai';
+      bubble.textContent = text;
+      mi.appendChild(av); mi.appendChild(bubble);
+      wrap.appendChild(mi);
+      chat.appendChild(wrap);
     }
   }
   scroll();
