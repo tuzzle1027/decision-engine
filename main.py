@@ -23,6 +23,8 @@ from policy_layer       import SYSTEM_RULES, POLICE_RULES
 from review_collectors  import CollectorManager
 from review_engines     import ReviewEngine
 
+VERSION = 'v14'
+
 # ── API 키 (환경변수에서만 읽기) ──
 OPENAI_API_KEY    = os.environ.get('OPENAI_API_KEY', '')
 APIFY_TOKEN       = os.environ.get('APIFY_TOKEN', '')
@@ -222,7 +224,9 @@ def make_summary(product_name, selections, raw_product, constraint_keys=None):
         if hint_texts:
             notice_prompt = f"""
 사용자가 {raw_product}을 찾고 있어요.
+선택 조건: {selections}
 감지된 제약: {', '.join(hint_texts)}
+※ 선택 조건에 특정 항공사/브랜드/상세조건이 있으면 그것에 맞는 구체적인 정보를 안내해주세요.
 
 아래 형식으로 출력하세요.
 
@@ -240,7 +244,7 @@ def make_summary(product_name, selections, raw_product, constraint_keys=None):
 • 항공사 기내 반입 기준: 보통 55x40x20cm, 10kg 이하예요
 • 초과시 위탁수하물 추가 비용이 발생할 수 있어요
 """
-            constraint_notice = call_llm(notice_prompt, max_tokens=150).strip()
+            constraint_notice = call_llm(notice_prompt, max_tokens=200).strip()
 
     prompt = f"""
 사용자가 선택한 조건:
@@ -310,7 +314,7 @@ def make_recommendation(product_name, selections, extra='', session=None):
 🔰 아기 제품은 KC 인증 여부와 모서리 안전 처리를 꼭 확인하세요.
 무독성 소재인지도 확인하시면 더 안전해요!
 """
-        constraint_notice = call_llm(notice_prompt, max_tokens=150).strip()
+        constraint_notice = call_llm(notice_prompt, max_tokens=200).strip()
 
     prompt = f"""
 사용자 조건: {selections}
@@ -391,7 +395,6 @@ def decision_engine(user_input, session=None):
         cur_keys = [c['constraint'] for c in cur_scores.get('constraint_interventions', [])]
         all_keys = list(set(step1_keys + cur_keys))
 
-        print(f'[제약 디버그] step1_keys={step1_keys} cur_keys={cur_keys} all_keys={all_keys}')
         summary = make_summary(
             session.get('product_name', ''),
             raw_text,
@@ -457,7 +460,11 @@ def chat():
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'ok', 'engine': 'Decision Engine v3'})
+    return jsonify({'status': 'ok', 'version': VERSION})
+
+@app.route('/version', methods=['GET'])
+def version():
+    return jsonify({'version': VERSION})
 
 @app.route('/', methods=['GET'])
 def index():

@@ -212,6 +212,16 @@ header{
 #sendBtn:hover{opacity:0.85;}
 #sendBtn:disabled{opacity:0.3;cursor:not-allowed;}
 #sendBtn svg{width:14px;height:14px;fill:white;}
+#micBtn{
+  width:36px;height:36px;background:var(--surface2);border:1.5px solid var(--border);
+  border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;transition:all 0.15s;
+}
+#micBtn:hover{border-color:var(--accent-dark);}
+#micBtn.recording{background:var(--neg);border-color:var(--neg);animation:pulse 1s infinite;}
+#micBtn svg{width:14px;height:14px;fill:var(--text-dim);}
+#micBtn.recording svg{fill:white;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
 </style>
 </head>
 <body>
@@ -250,7 +260,7 @@ header{
           <p>AI Review Reverse Engine</p>
         </div>
       </div>
-      <div class="status"><div class="dot"></div><span>v3 live</span></div>
+      <div class="status"><div class="dot"></div><span id="versionTag">live</span></div>
     </div>
   </header>
 
@@ -261,6 +271,9 @@ header{
       <div class="input-wrap">
         <textarea id="input" placeholder="메시지를 입력하세요..." rows="1"></textarea>
       </div>
+      <button id="micBtn" onclick="toggleVoice()">
+        <svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zm-1 19.93c-3.95-.49-7-3.85-7-7.93h2c0 3.31 2.69 6 6 6s6-2.69 6-6h2c0 4.08-3.05 7.44-7 7.93V23h-2v-2.07z"/></svg>
+      </button>
       <button id="sendBtn" onclick="send()">
         <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
       </button>
@@ -269,6 +282,11 @@ header{
 </div>
 
 <script>
+// 버전 자동 표시
+fetch('/version').then(r=>r.json()).then(d=>{
+  document.getElementById('versionTag').textContent = d.version + ' live';
+}).catch(()=>{});
+
 const chatPage   = document.getElementById('chat-page');
 const startPage  = document.getElementById('start-page');
 const chat       = document.getElementById('chat');
@@ -580,6 +598,62 @@ function addAiMsg(text) {
     }
   }
   scroll();
+}
+
+// TTS - AI 답변 읽어주기
+function speakText(text) {
+  if (!('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const clean = text.replace(/[⚠️✅❌🎉😊😅🔍✏️📚🛍️🥇🥈🥉]/gu, '').trim();
+  const utter = new SpeechSynthesisUtterance(clean);
+  utter.lang = 'ko-KR';
+  utter.rate = 1.0;
+  utter.pitch = 1.0;
+  window.speechSynthesis.speak(utter);
+}
+
+// 음성 인식
+let recognition = null;
+let isRecording = false;
+
+function toggleVoice() {
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    alert('이 브라우저는 음성 인식을 지원하지 않아요. Chrome을 사용해주세요!');
+    return;
+  }
+  if (isRecording) {
+    recognition.stop();
+    return;
+  }
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecognition();
+  recognition.lang = 'ko-KR';
+  recognition.continuous = false;
+  recognition.interimResults = false;
+
+  recognition.onstart = () => {
+    isRecording = true;
+    document.getElementById('micBtn').classList.add('recording');
+    input.placeholder = '🎤 말씀해주세요...';
+  };
+  recognition.onresult = (e) => {
+    const text = e.results[0][0].transcript;
+    input.value = text;
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 100) + 'px';
+  };
+  recognition.onend = () => {
+    isRecording = false;
+    document.getElementById('micBtn').classList.remove('recording');
+    input.placeholder = '메시지를 입력하세요...';
+    if (input.value.trim()) send();
+  };
+  recognition.onerror = () => {
+    isRecording = false;
+    document.getElementById('micBtn').classList.remove('recording');
+    input.placeholder = '메시지를 입력하세요...';
+  };
+  recognition.start();
 }
 
 async function send(overrideText) {
