@@ -391,6 +391,7 @@ def decision_engine(user_input, session=None):
         cur_keys = [c['constraint'] for c in cur_scores.get('constraint_interventions', [])]
         all_keys = list(set(step1_keys + cur_keys))
 
+        print(f'[제약 디버그] step1_keys={step1_keys} cur_keys={cur_keys} all_keys={all_keys}')
         summary = make_summary(
             session.get('product_name', ''),
             raw_text,
