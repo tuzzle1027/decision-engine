@@ -221,6 +221,15 @@ header{
 #micBtn.recording{background:var(--neg);border-color:var(--neg);animation:pulse 1s infinite;}
 #micBtn svg{width:14px;height:14px;fill:var(--text-dim);}
 #micBtn.recording svg{fill:white;}
+#speakBtn{
+  width:36px;height:36px;background:var(--surface2);border:1.5px solid var(--border);
+  border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;transition:all 0.15s;
+}
+#speakBtn:hover{border-color:var(--accent-dark);}
+#speakBtn.speaking{background:var(--accent-dark);border-color:var(--accent-dark);}
+#speakBtn svg{width:14px;height:14px;fill:var(--text-dim);}
+#speakBtn.speaking svg{fill:white;}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
 </style>
 </head>
@@ -278,6 +287,9 @@ header{
       </div>
       <button id="micBtn" onclick="toggleVoice()">
         <svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zm-1 19.93c-3.95-.49-7-3.85-7-7.93h2c0 3.31 2.69 6 6 6s6-2.69 6-6h2c0 4.08-3.05 7.44-7 7.93V23h-2v-2.07z"/></svg>
+      </button>
+      <button id="speakBtn" onclick="toggleSpeak()">
+        <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
       </button>
       <button id="sendBtn" onclick="send()">
         <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
@@ -639,21 +651,37 @@ function addAiMsg(text) {
     }
   }
 
+  // TTS용 텍스트 저장 (스피커 버튼용)
+  lastAiText = speakable;
   // TTS 실행
   if (speakable) speakText(speakable);
   scroll();
 }
 
 // TTS - AI 답변 읽어주기
+let lastAiText = '';
+
 function speakText(text) {
   if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
   const clean = text.replace(/[⚠️✅❌🎉😊😅🔍✏️📚🛍️🥇🥈🥉]/gu, '').trim();
+  if (!clean) return;
   const utter = new SpeechSynthesisUtterance(clean);
   utter.lang = 'ko-KR';
   utter.rate = 1.0;
   utter.pitch = 1.0;
+  utter.onend = () => { document.getElementById('speakBtn')?.classList.remove('speaking'); };
+  document.getElementById('speakBtn')?.classList.add('speaking');
   window.speechSynthesis.speak(utter);
+}
+
+function toggleSpeak() {
+  if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+    document.getElementById('speakBtn').classList.remove('speaking');
+  } else if (lastAiText) {
+    speakText(lastAiText);
+  }
 }
 
 // 음성 인식
