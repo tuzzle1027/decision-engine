@@ -206,15 +206,48 @@ BOARD_END"""
 # ===============================
 # 2단계: LLM 요약 확인
 # ===============================
-def make_summary(product_name, selections, raw_product):
-    """선택값을 자연스러운 문장으로 요약"""
+def make_summary(product_name, selections, raw_product, constraint_keys=None):
+    """선택값을 자연스러운 문장으로 요약 + 제약 안내 포함"""
+
+    # 제약 안내 생성
+    constraint_notice = ''
+    if constraint_keys:
+        hints = {
+            'C3_health': '안전/건강/인증',
+            'C4_legal':  '기내 반입 규정/무게/사이즈',
+            'C1_money':  '추가 비용',
+            'C2_time':   '배송/기간',
+        }
+        hint_texts = [hints[k] for k in constraint_keys if k in hints]
+        if hint_texts:
+            notice_prompt = f"""
+사용자가 {raw_product}을 찾고 있어요.
+감지된 제약: {', '.join(hint_texts)}
+
+아래 형식으로 출력하세요.
+
+⚠️ 이것 꼭 확인하세요!
+• 주의사항 1 (구체적 수치/기준 포함)
+• 주의사항 2
+
+예시 (아기 제품):
+⚠️ 이것 꼭 확인하세요!
+• KC 안전 인증 마크가 있는 제품인지 확인하세요
+• 모서리 라운드 처리 및 무독성 소재인지 확인하세요
+
+예시 (기내용):
+⚠️ 이것 꼭 확인하세요!
+• 항공사 기내 반입 기준: 보통 55x40x20cm, 10kg 이하예요
+• 초과시 위탁수하물 추가 비용이 발생할 수 있어요
+"""
+            constraint_notice = call_llm(notice_prompt, max_tokens=150).strip()
+
     prompt = f"""
 사용자가 선택한 조건:
 제품: {raw_product}
 선택: {selections}
 
-아래 형식으로 딱 2줄만 출력하세요.
-
+딱 2줄만 출력하세요.
 1줄: 선택 내용을 자연스러운 한 문장으로 요약 (이모지 포함)
 2줄: "이렇게 찾아드릴까요?"
 
@@ -222,7 +255,12 @@ def make_summary(product_name, selections, raw_product):
 "12개월 아기용, 목재 소재, 높이조절 가능한 5만원대 독서대를 찾으시는군요 😊"
 이렇게 찾아드릴까요?
 """
-    return call_llm(prompt, max_tokens=150).strip()
+    summary = call_llm(prompt, max_tokens=150).strip()
+
+    # 제약 안내를 요약 아래에 붙이기
+    if constraint_notice:
+        return summary + "\n\n" + constraint_notice
+    return summary
 
 
 # ===============================
@@ -234,9 +272,18 @@ def make_recommendation(product_name, selections, extra='', session=None):
     if extra:
         keyword += ' ' + extra
 
-    # 제약 감지
+    # 제약 감지 (2단계)
     sel_scores = sensor_layer(selections, session or {})
-    constraint_hint = get_constraint_hint(sel_scores.get('constraint_interventions', []))
+    step2_interventions = sel_scores.get('constraint_interventions', [])
+
+    # 1단계 + 2단계 합산
+    step1_keys = session.get('step1_constraints', [])
+    step2_keys = [c['constraint'] for c in step2_interventions]
+    all_keys = list(set(step1_keys + step2_keys))
+
+    # 합산 제약 힌트 생성
+    all_interventions = [{'constraint': k} for k in all_keys]
+    constraint_hint = get_constraint_hint(all_interventions)
 
     # 리뷰 역추적
     collector = CollectorManager()
@@ -244,11 +291,31 @@ def make_recommendation(product_name, selections, extra='', session=None):
     engine    = ReviewEngine()
     analysis  = engine.analyze(reviews, keyword)
 
+    # 제약 안내 LLM 생성 (있을 경우)
+    constraint_notice = ''
+    if constraint_hint:
+        notice_prompt = f"""
+사용자가 "{selections}" 조건으로 {product_name}을 찾고 있어요.
+{constraint_hint}
+
+딱 2줄만 출력하세요.
+1줄: 이모지 + 제약 관련 핵심 주의사항 (구체적인 수치/기준 포함)
+2줄: 이 점 확인하고 구매하시면 좋아요!
+
+예시 (기내용):
+✈️ 항공사마다 기내 반입 기준이 달라요. 보통 55x40x20cm, 10kg 이하예요.
+이 사이즈 초과하면 위탁수하물 추가 비용이 발생할 수 있어요!
+
+예시 (아기):
+🔰 아기 제품은 KC 인증 여부와 모서리 안전 처리를 꼭 확인하세요.
+무독성 소재인지도 확인하시면 더 안전해요!
+"""
+        constraint_notice = call_llm(notice_prompt, max_tokens=150).strip()
+
     prompt = f"""
 사용자 조건: {selections}
 {f"추가 요청: {extra}" if extra else ""}
 찾는 제품: {product_name}
-{constraint_hint}
 
 리뷰 역추적:
 만족: {analysis.get('satisfied', [])}
@@ -259,7 +326,12 @@ def make_recommendation(product_name, selections, extra='', session=None):
 각 제품: 이름 / 가격 / 특징 1줄 / 리뷰 근거
 광고 금지, 실제 리뷰 기반으로만
 """
-    return call_llm(prompt, system=SYSTEM_RULES)
+    result = call_llm(prompt, system=SYSTEM_RULES)
+
+    # 제약 안내 앞에 붙이기
+    if constraint_notice:
+        return constraint_notice + "\n\n" + result
+    return result
 
 
 # ===============================
@@ -313,10 +385,17 @@ def decision_engine(user_input, session=None):
         session['stage']      = 'confirm'
         session['selections'] = raw_text
 
+        # 1단계 + 현재 제약 합산
+        step1_keys = session.get('step1_constraints', [])
+        cur_scores = sensor_layer(raw_text, session)
+        cur_keys = [c['constraint'] for c in cur_scores.get('constraint_interventions', [])]
+        all_keys = list(set(step1_keys + cur_keys))
+
         summary = make_summary(
             session.get('product_name', ''),
             raw_text,
-            session.get('raw_product', '')
+            session.get('raw_product', ''),
+            constraint_keys=all_keys
         )
         session['summary'] = summary
 
@@ -348,6 +427,10 @@ Drive: N={drive.get('N')} W={drive.get('W')} Ψ={drive.get('Psi')}
 
     # LLM 상황판
     board = make_board_with_llm(product.get('product_name', raw_text), raw_text)
+
+    # 1단계 제약 감지 세션 저장
+    step1_interventions = scores.get('constraint_interventions', [])
+    session['step1_constraints'] = [c['constraint'] for c in step1_interventions]
 
     session['stage']       = 'board_shown'
     session['product_name'] = product.get('product_name', raw_text)
