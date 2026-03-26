@@ -51,7 +51,11 @@ def calculate_Phi(text):
     if re.search(PHI_EXPLORE,text,re.IGNORECASE): return 0.6
     return 0.8
 
-def estimate_I_hat(R_score,Phi):
+def estimate_I_hat(R_score,Phi,S_type='S1'):
+    # S2이면 R 최솟값 0.5 보장
+    # S2 = 방향 명시 → 의도 있음 → I_hat이 0이면 안됨
+    if S_type == 'S2' and R_score < 0.5:
+        R_score = 0.5
     I=R_score*Phi
     return {'I_hat':round(I,2),'theta':1.0,'activated':I>1.0}
 
@@ -129,9 +133,10 @@ def detect_B(text):
 def calculate_R2(B,theta=0.5,alpha=0.8):
     return round(B if B<theta else B+alpha*(B-theta)**2,2)
 
-def classify_res_state(direction,speed):
-    if direction<=0: return 'ANTI_INTENT'
-    elif speed<=0.2: return 'RESISTANCE'
+def classify_res_state(direction,speed,A=0,B=0,D=0):
+    if direction < 0: return 'ANTI_INTENT'   # D > A = 반의도
+    elif A == 0 and B == 0 and D == 0: return 'INTENT'  # 신호 없음 = 중립
+    elif speed <= 0.2: return 'RESISTANCE'
     return 'INTENT'
 
 def get_res_intervention(B_detail,R2,theta=0.5):
@@ -144,15 +149,29 @@ def get_res_intervention(B_detail,R2,theta=0.5):
 def resistance_engine(text,theta=0.5):
     A=detect_A(text); Br=detect_B(text); D=detect_D_res(text); B=Br['B_total']
     direction=round(A-D,2); speed=round(A-B,2); R2=calculate_R2(B,theta)
-    state=classify_res_state(direction,speed)
+    state=classify_res_state(direction,speed,A,B,Br['B_total'])
     return {'A':A,'B':B,'D':D,'Direction':direction,'Speed':speed,'R2':R2,'state':state,'intervention':get_res_intervention(Br,R2,theta),'B_detail':Br}
 
 # ── 제약 Always On ──
-CONSTRAINT_CATALOG={'C1_money':{'I':0.8,'keywords':['비용','요금','초과','벌금','수수료','cost','fee','penalty']},'C2_time':{'I':0.6,'keywords':['마감','기한','배송','늦','일정','deadline','late','schedule']},'C3_health':{'I':0.9,'keywords':['알레르기','위험','유해','건강','부작용','allergy','risk','health']},'C4_legal':{'I':0.95,'keywords':['법','규정','위반','불법','계약','law','regulation','illegal']},'C5_rep':{'I':0.5,'keywords':['평판','이미지','후기','신뢰','reputation','trust','review']}}
+CONSTRAINT_CATALOG={
+    'C1_money':  {'I':0.8, 'keywords':['비용','요금','초과','벌금','수수료','추가금','cost','fee','penalty','extra charge']},
+    'C2_time':   {'I':0.6, 'keywords':['마감','기한','배송','늦','일정','deadline','late','schedule']},
+    'C3_health': {'I':0.9, 'keywords':[
+        '알레르기','위험','유해','건강','부작용','allergy','risk','health',
+        '아기','유아','신생아','영아','아이','어린이','baby','infant','child','kids',
+        '안전','KC인증','인증','무독성','친환경','safety','certified','non-toxic'
+    ]},
+    'C4_legal':  {'I':0.95,'keywords':[
+        '법','규정','위반','불법','계약','law','regulation','illegal',
+        '기내','수하물','항공','캐리온','기내반입','carry-on','airline','luggage',
+        '무게제한','사이즈제한','size limit','weight limit'
+    ]},
+    'C5_rep':    {'I':0.5, 'keywords':['평판','이미지','후기','신뢰','reputation','trust','review']}
+}
 
 def constraint_engine(text,confirmed=None,F_prev=0,L_prev=0):
     if confirmed is None: confirmed={}
-    theta_c=round(min(0.4+0.1*F_prev+0.05*L_prev,0.9),3)
+    theta_c=round(min(0.2+0.05*F_prev+0.02*L_prev,0.8),3)
     risks={}; interventions=[]
     for key,c in CONSTRAINT_CATALOG.items():
         P=round(min(sum(1 for kw in c['keywords'] if kw in text)*0.35,1.0),2)
@@ -169,7 +188,7 @@ def sensor_layer(raw_text, session=None):
     # 의도
     S_type=classify_S(raw_text); drive=detect_drive(raw_text)
     R_result=calculate_R(raw_text); Phi=calculate_Phi(raw_text)
-    I_result=estimate_I_hat(R_result['R'],Phi)
+    I_result=estimate_I_hat(R_result['R'],Phi,S_type)
     # 반의도
     anti=anti_intent_engine(raw_text,I_hat=I_result['I_hat'],rej=session.get('rejection_count',0),turns=session.get('turn_count',0),cond=session.get('condition_added',False),hi=session.get('high_involvement',False))
     # 갈등
