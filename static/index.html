@@ -384,7 +384,7 @@ function startWithChip(text) {
 
 input.addEventListener('input', () => {
   input.style.height = 'auto';
-  input.style.height = Math.min(input.scrollHeight, 100) + 'px';
+  input.style.height = Math.min(input.scrollHeight, 120) + 'px';
 });
 input.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
@@ -716,14 +716,9 @@ function toggleVoice() {
   recognition.start();
 }
 
-// 입력창 자동 높이 조절
-input.addEventListener('input', () => {
-  input.style.height = 'auto';
-  input.style.height = Math.min(input.scrollHeight, 120) + 'px';
-});
+// 입력창 자동 높이 조절 (기존과 통합)
 
-
-  const msg = overrideText || input.value.trim();
+async function send(overrideText) {
   if (!msg) return;
   addUserMsg(msg);
   if (!overrideText) { input.value = ''; input.style.height = 'auto'; }
