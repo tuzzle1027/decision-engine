@@ -669,8 +669,17 @@ function speakText(text) {
   if (!clean) return;
   const utter = new SpeechSynthesisUtterance(clean);
   utter.lang = 'ko-KR';
-  utter.rate = 1.0;
+  utter.rate = 1.05;
   utter.pitch = 1.0;
+
+  // 가장 자연스러운 한국어 목소리 선택
+  const voices = window.speechSynthesis.getVoices();
+  const best = voices.find(v => v.lang === 'ko-KR' && v.name.includes('Siri'))
+    || voices.find(v => v.lang === 'ko-KR' && v.localService)
+    || voices.find(v => v.lang === 'ko-KR')
+    || voices.find(v => v.lang.startsWith('ko'));
+  if (best) utter.voice = best;
+
   utter.onend = () => { document.getElementById('speakBtn')?.classList.remove('speaking'); };
   document.getElementById('speakBtn')?.classList.add('speaking');
   window.speechSynthesis.speak(utter);
