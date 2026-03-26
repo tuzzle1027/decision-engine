@@ -607,6 +607,14 @@ function renderProducts(products) {
 }
 
 function addAiMsg(text) {
+  // TTS용 텍스트 정리
+  const speakable = text
+    .replace('CONFIRM_BUTTONS', '')
+    .replace(/\[A[^\]]*\].*$/ms, '')
+    .replace(/BOARD_START[\s\S]*?BOARD_END/g, '')
+    .replace(/^\d+\..*/mg, '')
+    .trim();
+
   if (isConfirm(text)) {
     chat.appendChild(renderConfirm(text));
   } else if (isBoard(text)) {
@@ -630,6 +638,9 @@ function addAiMsg(text) {
       chat.appendChild(wrap);
     }
   }
+
+  // TTS 실행
+  if (speakable) speakText(speakable);
   scroll();
 }
 
