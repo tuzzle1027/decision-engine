@@ -719,6 +719,7 @@ function toggleVoice() {
 // 입력창 자동 높이 조절 (기존과 통합)
 
 async function send(overrideText) {
+  const msg = overrideText || input.value.trim();
   if (!msg) return;
   addUserMsg(msg);
   if (!overrideText) { input.value = ''; input.style.height = 'auto'; }
