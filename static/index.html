@@ -235,9 +235,14 @@ header{
     <textarea id="start-input" placeholder="찾으시는 제품을 입력해주세요..." rows="1"></textarea>
     <div class="start-input-footer">
       <span style="font-size:12px;color:var(--text-dim);">AI Review Reverse Engine</span>
-      <button class="start-send-btn" onclick="startChat()">
-        <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
-      </button>
+      <div style="display:flex;gap:6px;">
+        <button id="startMicBtn" onclick="toggleStartVoice()" style="width:34px;height:34px;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;">
+          <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:var(--text-dim);"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zm-1 19.93c-3.95-.49-7-3.85-7-7.93h2c0 3.31 2.69 6 6 6s6-2.69 6-6h2c0 4.08-3.05 7.44-7 7.93V23h-2v-2.07z"/></svg>
+        </button>
+        <button class="start-send-btn" onclick="startChat()">
+          <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+        </button>
+      </div>
     </div>
   </div>
   <div class="start-chips">
@@ -295,6 +300,34 @@ const sendBtn    = document.getElementById('sendBtn');
 const startInput = document.getElementById('start-input');
 let session = null;
 const EMOJIS = ['🥇','🥈','🥉','4️⃣','5️⃣'];
+
+function toggleStartVoice() {
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    alert('Chrome 브라우저를 사용해주세요!');
+    return;
+  }
+  const btn = document.getElementById('startMicBtn');
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const rec = new SpeechRecognition();
+  rec.lang = 'ko-KR';
+  rec.continuous = false;
+  rec.interimResults = false;
+  rec.onstart = () => {
+    btn.style.background = '#c0392b';
+    btn.style.borderColor = '#c0392b';
+    startInput.placeholder = '🎤 말씀해주세요...';
+  };
+  rec.onresult = (e) => {
+    startInput.value = e.results[0][0].transcript;
+  };
+  rec.onend = () => {
+    btn.style.background = '';
+    btn.style.borderColor = '';
+    startInput.placeholder = '찾으시는 제품을 입력해주세요...';
+    if (startInput.value.trim()) startChat();
+  };
+  rec.start();
+}
 
 startInput.addEventListener('input', () => {
   startInput.style.height = 'auto';
