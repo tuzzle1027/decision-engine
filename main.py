@@ -321,7 +321,9 @@ def decision_engine(user_input, session=None):
     # ── VS 대기: 사용자가 VS에서 선택 → 상황판 진입 ──
     if stage == 'vs_wait':
         session['vs_choice'] = raw_text
-        board_result = make_board(raw_text, session)
+        # 원래 질문 기반으로 상황판 생성 (선택값은 session에서 읽음)
+        original = session.get('raw_product', raw_text)
+        board_result = make_board(original, session)
         session['stage'] = 'board_shown'
         return board_result['text']
 

@@ -531,7 +531,53 @@ class DecisionStructureEngine:
         if "vs" in q_norm.lower():
             chunks = [c.strip() for c in re.split(r"\bvs\b", q_norm, flags=re.I) if c.strip()]
             return chunks[:2]
+
+        # ── LLM 폴백: 비교 의도 감지 ──
+        # "어떤게 좋을까", "뭐가 나을까" 같은 패턴이 있을 때만 LLM 호출
+        compare_signals = ["어떤", "뭐가", "무엇이", "좋을까", "나을까", "추천", "비교", "고민"]
+        if sum(1 for s in compare_signals if s in q_norm) >= 2:
+            return self._llm_detect_vs(q_norm)
         return []
+
+    def _llm_detect_vs(self, q: str) -> List[str]:
+        """LLM으로 VS 선택지 동적 감지"""
+        import os, json, urllib.request
+        api_key = os.environ.get('ANTHROPIC_API_KEY', '')
+        if not api_key:
+            return []
+        prompt = f"""사용자 질문: "{q}"
+
+이 질문에서 비교 대상이 되는 두 가지 선택지를 추출하세요.
+비교 선택지가 명확하면 JSON으로만 출력하세요:
+{{"options": ["선택지A", "선택지B"]}}
+
+비교 선택지가 없으면:
+{{"options": []}}
+
+다른 텍스트 없이 JSON만 출력하세요."""
+        try:
+            body = json.dumps({
+                'model': 'claude-haiku-4-5-20251001',
+                'max_tokens': 100,
+                'messages': [{'role': 'user', 'content': prompt}]
+            }).encode()
+            req = urllib.request.Request(
+                'https://api.anthropic.com/v1/messages',
+                data=body,
+                headers={
+                    'Content-Type': 'application/json',
+                    'x-api-key': api_key,
+                    'anthropic-version': '2023-06-01'
+                },
+                method='POST'
+            )
+            res = urllib.request.urlopen(req, timeout=3)
+            data = json.loads(res.read())
+            text = data['content'][0]['text'].strip()
+            parsed = json.loads(text)
+            return parsed.get('options', [])[:2]
+        except:
+            return []
 
     def _need_multi_candidate(self, q: str, s: SensorState) -> bool:
         if s.vs_detected or s.direct_mapping or s.desire or s.bundle or s.solution:
@@ -604,7 +650,43 @@ class DecisionStructureEngine:
             return self.vs_templates[key]
         if rev_key in self.vs_templates:
             return self.vs_templates[rev_key]
-        return "어떤 쪽이 더 맞으세요?\n\n" + "\n".join(f"{opt} → 핵심 차이 비교 필요" for opt in options[:2])
+        # LLM으로 동적 생성
+        return self._llm_build_vs_explanation(options)
+
+    def _llm_build_vs_explanation(self, options: List[str]) -> str:
+        """하드코딩 없는 VS 설명 LLM 동적 생성"""
+        import os, json, urllib.request
+        api_key = os.environ.get('ANTHROPIC_API_KEY', '')
+        if not api_key:
+            return f"어떤 쪽이 더 맞으세요?\n\n{options[0]} → ?\n{options[1]} → ?"
+        prompt = f""""{options[0]}" vs "{options[1]}" 비교 설명을 만들어주세요.
+
+반드시 아래 형식으로만 출력하세요 (다른 말 절대 금지):
+어떤 쪽이 더 맞으세요?
+
+{options[0]} → 핵심 장점 한 줄
+{options[1]} → 핵심 장점 한 줄"""
+        try:
+            body = json.dumps({
+                'model': 'claude-haiku-4-5-20251001',
+                'max_tokens': 150,
+                'messages': [{'role': 'user', 'content': prompt}]
+            }).encode()
+            req = urllib.request.Request(
+                'https://api.anthropic.com/v1/messages',
+                data=body,
+                headers={
+                    'Content-Type': 'application/json',
+                    'x-api-key': api_key,
+                    'anthropic-version': '2023-06-01'
+                },
+                method='POST'
+            )
+            res = urllib.request.urlopen(req, timeout=5)
+            data = json.loads(res.read())
+            return data['content'][0]['text'].strip()
+        except:
+            return f"어떤 쪽이 더 맞으세요?\n\n{options[0]} → 핵심 차이 확인 필요\n{options[1]} → 핵심 차이 확인 필요"
 
     def _board_after_vs(self, pair: Tuple[str, str]) -> str:
         if pair == ("노트북", "데스크탑"):
@@ -648,7 +730,69 @@ class DecisionStructureEngine:
                 ("관리", ["방문 관리", "셀프 관리"]),
                 ("월 요금", ["저가", "중가", "고가"]),
             ])
-        return self._render_board([("선택", list(pair))])
+        # 하드코딩 없는 페어 → LLM으로 동적 생성
+        return self._llm_board_after_vs(pair)
+
+    def _llm_board_after_vs(self, pair: Tuple[str, str]) -> str:
+        """VS 선택 후 상황판 LLM 동적 생성"""
+        import os, json, urllib.request
+        selected = pair[0]
+        api_key = os.environ.get('ANTHROPIC_API_KEY', '')
+        if not api_key:
+            return self._render_board([
+                ("용도", ["기본", "고급"]),
+                ("가격", ["저가", "중가", "고가"]),
+            ])
+        prompt = f"""사용자가 "{selected}"를 선택했어요. 구매 상황판을 만들어주세요.
+
+반드시 아래 형식으로만 출력하세요:
+----------------------------
+
+[항목명1]
+옵션1 / 옵션2 / 옵션3
+
+[항목명2]
+옵션1 / 옵션2 / 옵션3
+
+[항목명3]
+옵션1 / 옵션2 / 옵션3
+
+[가격]
+저가 / 중가 / 고가
+
+[E 직접입력]
+원하는 조건을 자유롭게 입력하세요
+
+----------------------------
+
+규칙:
+- 실제 구매 기준이 되는 항목만 (3~5개)
+- 물리적으로 불가능한 옵션 금지
+- 다른 텍스트 없이 형식만 출력"""
+        try:
+            body = json.dumps({
+                'model': 'claude-haiku-4-5-20251001',
+                'max_tokens': 400,
+                'messages': [{'role': 'user', 'content': prompt}]
+            }).encode()
+            req = urllib.request.Request(
+                'https://api.anthropic.com/v1/messages',
+                data=body,
+                headers={
+                    'Content-Type': 'application/json',
+                    'x-api-key': api_key,
+                    'anthropic-version': '2023-06-01'
+                },
+                method='POST'
+            )
+            res = urllib.request.urlopen(req, timeout=5)
+            data = json.loads(res.read())
+            return data['content'][0]['text'].strip()
+        except:
+            return self._render_board([
+                ("용도", ["입문", "일반", "고급"]),
+                ("가격", ["저가", "중가", "고가"]),
+            ])
 
     def _board_constraint(self) -> str:
         return self._render_board([
