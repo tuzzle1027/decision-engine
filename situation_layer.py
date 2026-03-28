@@ -505,6 +505,11 @@ class DecisionStructureEngine:
         return None
 
     def _extract_vs_options(self, q: str) -> List[str]:
+        # 오타/유사어 정규화
+        q_norm = q
+        for typo in ["테스크탑", "데스크 탑", "테스크 탑", "데스크탑pc", "데스크탑PC"]:
+            q_norm = q_norm.replace(typo, "데스크탑")
+
         pairs = [
             ("노트북", "데스크탑"),
             ("가죽", "패브릭"),
@@ -512,15 +517,19 @@ class DecisionStructureEngine:
             ("구매", "렌탈"),
             ("캐리어", "백팩"),
         ]
+        # 노트북 vs 컴퓨터(데스크탑) 조합
+        if "노트북" in q_norm and any(k in q_norm for k in ["컴퓨터", "PC", "pc"]) and "데스크탑" not in q_norm:
+            return ["노트북", "데스크탑"]
+
         found: List[str] = []
         for a, b in pairs:
-            if a in q and b in q:
+            if a in q_norm and b in q_norm:
                 found = [a, b]
                 break
         if found:
             return found
-        if "vs" in q.lower():
-            chunks = [c.strip() for c in re.split(r"\bvs\b", q, flags=re.I) if c.strip()]
+        if "vs" in q_norm.lower():
+            chunks = [c.strip() for c in re.split(r"\bvs\b", q_norm, flags=re.I) if c.strip()]
             return chunks[:2]
         return []
 

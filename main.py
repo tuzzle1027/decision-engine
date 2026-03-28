@@ -397,11 +397,13 @@ def decision_engine(user_input, session=None):
     # 공감 멘트
     drive = scores.get('Drive', {})
     empathy = call_llm(f"""
-사용자가 "{raw_text}" 를 찾고 있어요.
+사용자가 쇼핑 AI에게 "{raw_text}" 라고 입력했어요.
+이 사람은 제품을 구매하려고 합니다.
 Drive: N={drive.get('N')} W={drive.get('W')} Ψ={drive.get('Psi')}
 
-딱 한 줄만 출력하세요. 따뜻한 공감 + 이모지.
-질문이나 상황판 금지.
+딱 한 줄만 출력하세요. 구매를 도와준다는 따뜻한 공감 + 이모지.
+"찾아드리다", "도와드리다" 같은 쇼핑 문맥 표현 사용.
+질문이나 상황판 금지. "잃어버리다" 같은 표현 절대 금지.
 """, max_tokens=80).strip()
 
     # situation_layer 상황판
