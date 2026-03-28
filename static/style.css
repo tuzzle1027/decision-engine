@@ -232,3 +232,20 @@ header{
 #micBtn svg{width:14px;height:14px;fill:var(--text-dim);}
 #micBtn.recording svg{fill:white;}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
+
+/* 음악 버튼 */
+#musicBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  opacity: 0.5;
+  transition: opacity 0.2s, transform 0.15s;
+  margin-left: 8px;
+  padding: 4px;
+  border-radius: 8px;
+}
+#musicBtn:hover {
+  opacity: 0.9;
+  transform: scale(1.15);
+}
