@@ -416,7 +416,6 @@ class DecisionStructureEngine:
         if mode == "context_panel":
             return BoardRender(
                 mode=mode,
-                explanation=f"{s.context} 기준으로 상황판을 재생성했습니다.",
                 board=self._board_context_panel(s.product or "", s.context or "가정"),
             )
 

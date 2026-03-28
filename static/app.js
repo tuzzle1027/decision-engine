@@ -88,27 +88,33 @@ function addTyping() {
 }
 
 // ── Context 선택 버튼 ──
-function isContextSelect(text) { return text.startsWith('CONTEXT_SELECT:'); }
+function isContextSelect(text) { return text.includes('CONTEXT_SELECT:'); }
 
 function renderContextSelect(text) {
-  const options = text.replace('CONTEXT_SELECT:', '').split('/').map(o => o.trim());
-  const wrap = document.createElement('div');
-  wrap.className = 'msg-wrap';
-  const mi = document.createElement('div');
-  mi.className = 'msg-inner full';
-  const av = document.createElement('div');
-  av.className = 'av av-ai'; av.textContent = '🛍️';
-  const box = document.createElement('div');
-  box.className = 'confirm-wrap';
-  const txt = document.createElement('div');
-  txt.className = 'confirm-text';
-  txt.textContent = '어디에서 사용하시나요?';
+  const idx = text.indexOf('CONTEXT_SELECT:');
+  const empathy = text.substring(0, idx).trim();
+  const raw = text.substring(idx + 'CONTEXT_SELECT:'.length).split('\n')[0];
+  const options = raw.split('/').map(o => o.trim()).filter(Boolean);
+
+  if (empathy) {
+    const w = document.createElement('div'); w.className = 'msg-wrap';
+    const m = document.createElement('div'); m.className = 'msg-inner';
+    const a = document.createElement('div'); a.className = 'av av-ai'; a.textContent = '🛍️';
+    const b = document.createElement('div'); b.className = 'bubble bubble-ai'; b.textContent = empathy;
+    m.appendChild(a); m.appendChild(b); w.appendChild(m); chat.appendChild(w);
+  }
+
+  const wrap = document.createElement('div'); wrap.className = 'msg-wrap';
+  const mi   = document.createElement('div'); mi.className = 'msg-inner full';
+  const av   = document.createElement('div'); av.className = 'av av-ai'; av.textContent = '🛍️';
+  const box  = document.createElement('div'); box.className = 'confirm-wrap';
+  const txt  = document.createElement('div'); txt.className = 'confirm-text';
+  txt.textContent = '선택해주세요';
   box.appendChild(txt);
-  const btns = document.createElement('div');
-  btns.className = 'confirm-btns';
+  const btns = document.createElement('div'); btns.className = 'confirm-btns';
   options.forEach(opt => {
     const btn = document.createElement('button');
-    btn.className = 'confirm-btn btn-yes';
+    btn.className = 'confirm-btn btn-add';
     btn.textContent = opt;
     btn.onclick = () => send(opt);
     btns.appendChild(btn);
@@ -121,115 +127,106 @@ function renderContextSelect(text) {
 
 // ── 상황판 ──
 function isBoard(text) {
-  // 뉴 상황판: --- 구분선 + [E 직접입력] 포함
-  // 기존 상황판: [A ...] + [E 직접입력] 포함 (하위 호환)
-  const hasNewFormat = text.includes('---') && text.includes('[E 직접입력]');
-  const hasOldFormat = text.includes('[A ') && text.includes('[E 직접입력]');
-  return hasNewFormat || hasOldFormat;
+  const hasNew = text.includes('---') && text.includes('[E 직접입력]');
+  const hasOld = text.includes('[A ') && text.includes('[E 직접입력]');
+  return hasNew || hasOld;
+}
+
+function _buildOptButtons(optsEl, optStr, key, selections) {
+  optStr.split('/').map(o => o.trim()).filter(Boolean).forEach(opt => {
+    const btn = document.createElement('div');
+    btn.className = 'opt-btn';
+    btn.textContent = opt;
+    btn.onclick = () => {
+      optsEl.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      selections[key] = opt;
+    };
+    optsEl.appendChild(btn);
+  });
 }
 
 function renderBoard(fullText) {
-  // 뉴 상황판: --- 구분선 기준으로 board 시작
-  // 기존 상황판: [A 로 시작
-  const isNewFormat = fullText.includes('---') && fullText.includes('[E 직접입력]');
+  const isNew = fullText.includes('---') && fullText.includes('[E 직접입력]');
   let boardStart, empathy, boardText;
 
-  if (isNewFormat) {
+  if (isNew) {
     boardStart = fullText.indexOf('---');
-    empathy    = boardStart > 0 ? fullText.substring(0, boardStart).trim() : '';
-    boardText  = fullText.substring(boardStart);
+    empathy   = boardStart > 0 ? fullText.substring(0, boardStart).trim() : '';
+    boardText = fullText.substring(boardStart);
   } else {
     boardStart = fullText.indexOf('[A ');
-    empathy    = boardStart > 0 ? fullText.substring(0, boardStart).trim() : '';
-    boardText  = boardStart > 0 ? fullText.substring(boardStart) : fullText;
+    empathy   = boardStart > 0 ? fullText.substring(0, boardStart).trim() : '';
+    boardText = boardStart >= 0 ? fullText.substring(boardStart) : fullText;
   }
 
   if (empathy) {
-    const wrap = document.createElement('div');
-    wrap.className = 'msg-wrap';
-    const mi = document.createElement('div');
-    mi.className = 'msg-inner';
-    const av = document.createElement('div');
-    av.className = 'av av-ai'; av.textContent = '🛍️';
-    const bubble = document.createElement('div');
-    bubble.className = 'bubble bubble-ai';
-    bubble.textContent = empathy;
-    mi.appendChild(av); mi.appendChild(bubble);
-    wrap.appendChild(mi);
-    chat.appendChild(wrap);
+    const w = document.createElement('div'); w.className = 'msg-wrap';
+    const m = document.createElement('div'); m.className = 'msg-inner';
+    const a = document.createElement('div'); a.className = 'av av-ai'; a.textContent = '🛍️';
+    const b = document.createElement('div'); b.className = 'bubble bubble-ai'; b.textContent = empathy;
+    m.appendChild(a); m.appendChild(b); w.appendChild(m); chat.appendChild(w);
   }
 
-  const lines = boardText.split('\n').filter(l => l.trim());
-  const wrap = document.createElement('div');
-  wrap.className = 'msg-wrap';
-  const mi = document.createElement('div');
-  mi.className = 'msg-inner full';
-  const av = document.createElement('div');
-  av.className = 'av av-ai'; av.textContent = '🛍️';
-  const board = document.createElement('div');
-  board.className = 'board';
-  const title = document.createElement('div');
-  title.className = 'board-title';
-  title.textContent = '조건을 선택해주세요';
-  board.appendChild(title);
+  const wrap  = document.createElement('div'); wrap.className = 'msg-wrap';
+  const mi    = document.createElement('div'); mi.className = 'msg-inner full';
+  const av    = document.createElement('div'); av.className = 'av av-ai'; av.textContent = '🛍️';
+  const board = document.createElement('div'); board.className = 'board';
+  const ttl   = document.createElement('div'); ttl.className = 'board-title'; ttl.textContent = '조건을 선택해주세요';
+  board.appendChild(ttl);
 
   const selections = {};
-  let directInput = null;
-  let rowIndex = 0;
+  let directInput  = null;
+  let rowIdx       = 0;
+  let pendingRow   = null;
+  let pendingKey   = null;
 
-  lines.forEach(line => {
-    // --- 구분선 스킵
-    if (line.trim().startsWith('---')) return;
+  boardText.split('\n').forEach(line => {
+    const t = line.trim();
+    if (!t || t.startsWith('---')) { pendingRow = null; pendingKey = null; return; }
 
-    // [E 직접입력] 또는 [E ...] 감지 (기존 + 뉴 포맷)
-    const isDirectInput = line.includes('[E 직접입력]') || line.match(/^\[E\s/);
+    const lm = t.match(/^\[([^\]]+)\](.*)$/);
+    if (lm) {
+      pendingRow = null; pendingKey = null;
+      const label  = lm[1].trim();
+      const inline = lm[2].trim();
+      const isOld  = /^[A-E](\s|$)/.test(label);
+      const isE    = label === 'E 직접입력' || label.startsWith('E ') || label === 'E';
+      const key    = isOld ? label[0] : `r${rowIdx++}`;
 
-    // 뉴 포맷: [한글라벨] 또는 기존 포맷: [A 항목명]
-    const match = line.match(/\[([^\]]+)\]\s*(.*)/);
-    if (!match) return;
+      const row = document.createElement('div'); row.className = 'board-row';
+      const lbl = document.createElement('div');
+      lbl.className = isE ? 'board-label label-e' : 'board-label';
+      lbl.textContent = `[${label}]`;
+      row.appendChild(lbl);
 
-    const label   = match[1].trim();
-    const content = match[2].trim();
-    // 기존 포맷은 첫 글자가 A~E, 뉴 포맷은 한글
-    const isOldFormat = /^[A-E](\s|$)/.test(label);
-    const key = isOldFormat ? label[0] : `row_${rowIndex++}`;
-    const isE = label.startsWith('E ') || label === 'E 직접입력' || label === 'E';
+      if (isE) {
+        const inp = document.createElement('input');
+        inp.className = 'board-direct'; inp.placeholder = '직접 입력하세요...'; inp.type = 'text';
+        directInput = inp;
+        row.appendChild(inp); board.appendChild(row);
+        const help = document.createElement('div'); help.className = 'board-help';
+        help.textContent = '✍️ 여기에 적어주신 한 마디가 더 정확한 제품을 찾는데 도움이 됩니다';
+        board.appendChild(help);
+      } else if (inline) {
+        // 기존 포맷: 같은 줄 옵션
+        const opts = document.createElement('div'); opts.className = 'board-options';
+        _buildOptButtons(opts, inline, key, selections);
+        row.appendChild(opts); board.appendChild(row);
+      } else {
+        // 뉴 포맷: 다음 줄에 옵션 대기
+        board.appendChild(row);
+        pendingRow = row; pendingKey = key;
+      }
+      return;
+    }
 
-    const row = document.createElement('div');
-    row.className = 'board-row';
-    const lbl = document.createElement('div');
-    lbl.className = isE ? 'board-label label-e' : 'board-label';
-    lbl.textContent = `[${label}]`;
-    row.appendChild(lbl);
-
-    if (isE) {
-      const inp = document.createElement('input');
-      inp.className = 'board-direct';
-      inp.placeholder = '직접 입력하세요...';
-      inp.type = 'text';
-      directInput = inp;
-      row.appendChild(inp);
-      board.appendChild(row);
-      const help = document.createElement('div');
-      help.className = 'board-help';
-      help.textContent = '✍️ 여기에 적어주신 한 마디가 더 정확한 제품을 찾는데 도움이 됩니다';
-      board.appendChild(help);
-    } else {
-      const opts = document.createElement('div');
-      opts.className = 'board-options';
-      content.split('/').map(o => o.trim()).filter(Boolean).forEach(opt => {
-        const btn = document.createElement('div');
-        btn.className = 'opt-btn';
-        btn.textContent = opt;
-        btn.onclick = () => {
-          opts.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
-          btn.classList.add('selected');
-          selections[key] = opt;
-        };
-        opts.appendChild(btn);
-      });
-      row.appendChild(opts);
-      board.appendChild(row);
+    // 뉴 포맷: 라벨 다음 줄 옵션
+    if (pendingRow && t.includes('/')) {
+      const opts = document.createElement('div'); opts.className = 'board-options';
+      _buildOptButtons(opts, t, pendingKey, selections);
+      pendingRow.appendChild(opts);
+      pendingRow = null; pendingKey = null;
     }
   });
 
@@ -238,15 +235,14 @@ function renderBoard(fullText) {
   confirmBtn.textContent = '선택 완료 →';
   confirmBtn.onclick = () => {
     const parts = [];
-    ['A','B','C','D'].forEach(k => { if (selections[k]) parts.push(`${k}:${selections[k]}`); });
+    Object.keys(selections).forEach(k => { if (selections[k]) parts.push(`${k}:${selections[k]}`); });
     if (directInput && directInput.value.trim()) parts.push(`E:${directInput.value.trim()}`);
     if (parts.length === 0) { alert('조건을 하나 이상 선택해주세요'); return; }
     send(parts.join(' '));
   };
   board.appendChild(confirmBtn);
   mi.appendChild(av); mi.appendChild(board);
-  wrap.appendChild(mi);
-  chat.appendChild(wrap);
+  wrap.appendChild(mi); chat.appendChild(wrap);
 }
 
 // ── 확인 버튼 ──
