@@ -103,11 +103,17 @@ const bgMusic = document.getElementById('bgMusic');
 bgMusic.volume = 0.08;
 
 // 트랙 종료 시 다음 곡으로
-bgMusic.addEventListener('ended', () => {
-  currentTrack = (currentTrack + 1) % PLAYLIST.length;
+function playNextRandom() {
+  let next;
+  do { next = Math.floor(Math.random() * PLAYLIST.length); }
+  while (next === currentTrack && PLAYLIST.length > 1);
+  currentTrack = next;
   bgMusic.src = PLAYLIST[currentTrack];
+  bgMusic.load();
   bgMusic.play().catch(() => {});
-});
+}
+bgMusic.addEventListener('ended', playNextRandom);
+bgMusic.addEventListener('error', playNextRandom);
 
 function _syncMusicBtns(playing) {
   const icon = playing ? '🔇' : '🎵';
