@@ -312,6 +312,10 @@ class DecisionStructureEngine:
             s.vs_choice = session["vs_choice"]
             s.vs_detected = True
             s.options = session.get("vs_options", s.options)
+        # Context 세션 주입
+        if session and session.get("context"):
+            s.context = session["context"]
+            s.needs_context = True
         mode = self.decide_mode(s)
         render = self._render_mode(query, s, mode)
         return {
@@ -698,13 +702,15 @@ class DecisionStructureEngine:
                     ("가격", ["중가", "고가", "프리미엄"]),
                     ("설치", ["설치 포함", "일정 협의"]),
                 ])
+            # 가정용 context 선택 완료 → 용도 항목 제거, 현실적 옵션으로
             return self._render_board([
-                ("용량/가족", ["1~2인", "3~4인", "대가족"]),
-                ("기능", ["기본", "양문형", "김치냉장고 포함"]),
-                ("구매 시점", ["지금 급함", "비교 후 구매"]),
-                ("배송/설치", ["빠른 배송", "설치 포함", "직접 설치"]),
+                ("가족 인원", ["1~2인", "3~4인", "5인 이상"]),
+                ("형태", ["일반형", "양문형", "4도어", "김치냉장고 포함"]),
+                ("용량", ["300L 이하", "300~500L", "500L 이상"]),
+                ("주요 기능", ["절전/인버터", "신선보관", "제빙기 포함", "상관없음"]),
+                ("소음", ["적음", "상관없음"]),
+                ("설치", ["빠른 설치", "날짜 지정", "직접 설치"]),
                 ("가격", ["저가", "중가", "고가"]),
-                ("비교 기준", ["브랜드", "가성비", "디자인"]),
             ])
 
         if product == "에어컨":
@@ -786,13 +792,13 @@ class DecisionStructureEngine:
                 ("비교 기준", ["가성비", "성능", "디자인"]),
             ])
         if product == "냉장고":
+            # conflict_mode: context 미선택 → context 먼저 안내
             return self._render_board([
-                ("용량/가족", ["1~2인", "3~4인", "대가족"]),
-                ("기능", ["기본", "양문형", "김치냉장고 포함"]),
-                ("구매 시점", ["지금 급함", "비교 후 구매"]),
-                ("배송/설치", ["빠른 배송", "설치 포함", "직접 설치"]),
+                ("사용 장소", ["가정", "사무실", "업소"]),
+                ("형태", ["일반형", "양문형", "4도어", "김치냉장고 포함"]),
+                ("용량", ["300L 이하", "300~500L", "500L 이상"]),
+                ("설치", ["빠른 설치", "날짜 지정", "직접 설치"]),
                 ("가격", ["저가", "중가", "고가"]),
-                ("비교 기준", ["브랜드", "가성비", "디자인"]),
             ])
         return self._board_panel(product)
 

@@ -87,6 +87,38 @@ function addTyping() {
   scroll();
 }
 
+// ── Context 선택 버튼 ──
+function isContextSelect(text) { return text.startsWith('CONTEXT_SELECT:'); }
+
+function renderContextSelect(text) {
+  const options = text.replace('CONTEXT_SELECT:', '').split('/').map(o => o.trim());
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap';
+  const mi = document.createElement('div');
+  mi.className = 'msg-inner full';
+  const av = document.createElement('div');
+  av.className = 'av av-ai'; av.textContent = '🛍️';
+  const box = document.createElement('div');
+  box.className = 'confirm-wrap';
+  const txt = document.createElement('div');
+  txt.className = 'confirm-text';
+  txt.textContent = '어디에서 사용하시나요?';
+  box.appendChild(txt);
+  const btns = document.createElement('div');
+  btns.className = 'confirm-btns';
+  options.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.className = 'confirm-btn btn-yes';
+    btn.textContent = opt;
+    btn.onclick = () => send(opt);
+    btns.appendChild(btn);
+  });
+  box.appendChild(btns);
+  mi.appendChild(av); mi.appendChild(box);
+  wrap.appendChild(mi);
+  return wrap;
+}
+
 // ── 상황판 ──
 function isBoard(text) {
   // 뉴 상황판: --- 구분선 + [E 직접입력] 포함
@@ -320,7 +352,9 @@ function renderProducts(products) {
 
 // ── AI 메시지 ──
 function addAiMsg(text) {
-  if (isConfirm(text)) {
+  if (isContextSelect(text)) {
+    chat.appendChild(renderContextSelect(text));
+  } else if (isConfirm(text)) {
     chat.appendChild(renderConfirm(text));
   } else if (isBoard(text)) {
     renderBoard(text);

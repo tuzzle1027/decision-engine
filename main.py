@@ -142,6 +142,13 @@ def make_board(raw_text, session=None):
             'vs_options': options
         }
 
+    # Context 선택 필요: 버튼형으로 렌더링
+    if mode == 'context_preselect':
+        return {
+            'type': 'context_select',
+            'text': 'CONTEXT_SELECT:가정/사무실/업소'
+        }
+
     # 상황판 조합: 설명 + 컬러 + board
     parts = []
     if render.get('explanation'):
@@ -304,6 +311,13 @@ def decision_engine(user_input, session=None):
     raw_text = ocr['clean']
     stage    = session.get('stage')
 
+    # ── Context 대기: 가정/사무실/업소 선택 → 상황판 진입 ──
+    if stage == 'context_wait':
+        session['context'] = raw_text
+        board_result = make_board(session.get('raw_product', raw_text), session)
+        session['stage'] = 'board_shown'
+        return board_result['text']
+
     # ── VS 대기: 사용자가 VS에서 선택 → 상황판 진입 ──
     if stage == 'vs_wait':
         session['vs_choice'] = raw_text
@@ -403,6 +417,11 @@ Drive: N={drive.get('N')} W={drive.get('W')} Ψ={drive.get('Psi')}
     if board_result['type'] == 'vs_explain':
         session['stage']      = 'vs_wait'
         session['vs_options'] = board_result.get('vs_options', [])
+        return empathy + "\n\n" + board_result['text']
+
+    # Context 선택 필요: 버튼형 선택 대기
+    if board_result['type'] == 'context_select':
+        session['stage'] = 'context_wait'
         return empathy + "\n\n" + board_result['text']
 
     session['stage'] = 'board_shown'
