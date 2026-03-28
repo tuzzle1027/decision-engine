@@ -87,6 +87,44 @@ function addTyping() {
   scroll();
 }
 
+// ── VS 선택 버튼 ──
+function isVsSelect(text) { return text.includes('VS_SELECT:'); }
+
+function renderVsSelect(text) {
+  const idx = text.indexOf('VS_SELECT:');
+  const explanation = text.substring(0, idx).trim();
+  const raw = text.substring(idx + 'VS_SELECT:'.length).split('\n')[0];
+  const options = raw.split('/').map(o => o.trim()).filter(Boolean);
+
+  // VS 설명 버블
+  if (explanation) {
+    const w = document.createElement('div'); w.className = 'msg-wrap';
+    const m = document.createElement('div'); m.className = 'msg-inner';
+    const a = document.createElement('div'); a.className = 'av av-ai'; a.textContent = '🛍️';
+    const b = document.createElement('div'); b.className = 'bubble bubble-ai';
+    b.textContent = explanation;
+    m.appendChild(a); m.appendChild(b); w.appendChild(m); chat.appendChild(w);
+  }
+
+  // 선택 버튼
+  const wrap = document.createElement('div'); wrap.className = 'msg-wrap';
+  const mi   = document.createElement('div'); mi.className = 'msg-inner full';
+  const av   = document.createElement('div'); av.className = 'av av-ai'; av.textContent = '🛍️';
+  const box  = document.createElement('div'); box.className = 'confirm-wrap';
+  const btns = document.createElement('div'); btns.className = 'confirm-btns';
+  options.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.className = 'confirm-btn btn-add';
+    btn.textContent = opt;
+    btn.onclick = () => send(opt);
+    btns.appendChild(btn);
+  });
+  box.appendChild(btns);
+  mi.appendChild(av); mi.appendChild(box);
+  wrap.appendChild(mi);
+  return wrap;
+}
+
 // ── Context 선택 버튼 ──
 function isContextSelect(text) { return text.includes('CONTEXT_SELECT:'); }
 
@@ -348,7 +386,9 @@ function renderProducts(products) {
 
 // ── AI 메시지 ──
 function addAiMsg(text) {
-  if (isContextSelect(text)) {
+  if (isVsSelect(text)) {
+    chat.appendChild(renderVsSelect(text));
+  } else if (isContextSelect(text)) {
     chat.appendChild(renderContextSelect(text));
   } else if (isConfirm(text)) {
     chat.appendChild(renderConfirm(text));

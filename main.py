@@ -465,7 +465,11 @@ Drive: N={drive.get('N')} W={drive.get('W')} Ψ={drive.get('Psi')}
     if board_result['type'] == 'vs_explain':
         session['stage']      = 'vs_wait'
         session['vs_options'] = board_result.get('vs_options', [])
-        return empathy + "\n\n" + board_result['text']
+        vs_options_str = '/'.join(board_result.get('vs_options', []))
+        vs_text = board_result['text']
+        # 선택 버튼 태그 추가
+        vs_text += f"\n\nVS_SELECT:{vs_options_str}"
+        return empathy + "\n\n" + vs_text
 
     # Context 선택 필요: 버튼형 선택 대기
     if board_result['type'] == 'context_select':
