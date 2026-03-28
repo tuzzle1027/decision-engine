@@ -376,10 +376,12 @@ class DecisionStructureEngine:
 
         if mode == "vs_selected":
             options = s.options[:2]
+            chosen = getattr(s, 'vs_choice', None) or options[0]
             color_layer = None
-            if tuple(options) == ("가죽", "패브릭"):
+            if chosen in ["패브릭", "가죽"]:
                 color_layer = self._color_layer(["베이지", "그레이", "블랙", "브라운"])
-            board = self._board_after_vs(tuple(options))
+            # 하드코딩 페어 우선, 없으면 LLM으로 선택된 제품 상황판 생성
+            board = self._board_after_vs_choice(tuple(options), chosen)
             return BoardRender(mode=mode, color_layer=color_layer, board=board)
 
         if mode == "solution_mode":
@@ -765,6 +767,20 @@ class DecisionStructureEngine:
                 print(f'[VS설명 OpenAI 오류] {e}')
 
         return fallback
+
+    def _board_after_vs_choice(self, pair: Tuple[str, str], chosen: str) -> str:
+        """사용자가 VS에서 선택한 제품 기준으로 상황판 생성"""
+        # 하드코딩 페어는 선택값에 따라 분기
+        if set(pair) == {"노트북", "데스크탑"}:
+            return self._board_after_vs(("노트북", "데스크탑"))
+        if set(pair) == {"가죽", "패브릭"}:
+            return self._board_after_vs(("가죽", "패브릭"))
+        if set(pair) == {"노르웨이산", "덴마크산"}:
+            return self._board_after_vs(("노르웨이산", "덴마크산"))
+        if set(pair) == {"구매", "렌탈"}:
+            return self._board_after_vs(("구매", "렌탈"))
+        # 미등록 페어 → 선택된 제품으로 LLM 상황판
+        return self._llm_board_after_vs((chosen, ""))
 
     def _board_after_vs(self, pair: Tuple[str, str]) -> str:
         if pair == ("노트북", "데스크탑"):
