@@ -249,3 +249,21 @@ header{
   opacity: 0.9;
   transform: scale(1.15);
 }
+
+/* 음악 버튼 강제 표시 */
+#musicBtn {
+  background: var(--surface2) !important;
+  border: 1.5px solid var(--border) !important;
+  border-radius: 10px !important;
+  cursor: pointer !important;
+  font-size: 14px !important;
+  width: 34px !important;
+  height: 34px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  transition: all 0.15s !important;
+  margin-left: 6px !important;
+}
+#musicBtn:hover { border-color: var(--accent) !important; }
