@@ -510,6 +510,7 @@ class DecisionStructureEngine:
         for typo in ["테스크탑", "데스크 탑", "테스크 탑", "데스크탑pc", "데스크탑PC"]:
             q_norm = q_norm.replace(typo, "데스크탑")
 
+        # 하드코딩 페어
         pairs = [
             ("노트북", "데스크탑"),
             ("가죽", "패브릭"),
@@ -521,30 +522,40 @@ class DecisionStructureEngine:
         if "노트북" in q_norm and any(k in q_norm for k in ["컴퓨터", "PC", "pc"]) and "데스크탑" not in q_norm:
             return ["노트북", "데스크탑"]
 
-        found: List[str] = []
         for a, b in pairs:
             if a in q_norm and b in q_norm:
-                found = [a, b]
-                break
-        if found:
-            return found
+                return [a, b]
+
+        # vs 키워드
         if "vs" in q_norm.lower():
             chunks = [c.strip() for c in re.split(r"\bvs\b", q_norm, flags=re.I) if c.strip()]
-            return chunks[:2]
+            if len(chunks) >= 2:
+                return chunks[:2]
+
+        # ── 패턴 기반 동적 감지 (LLM 없이도 작동) ──
+        # "A랑 B", "A이랑 B", "A와 B", "A과 B", "A하고 B" 패턴
+        pattern = re.search(
+            r'([가-힣a-zA-Z0-9]+(?:용|기|판|대|차|보드|크|폰|북|탑|백|백팩|장|화)?)'
+            r'\s*(?:랑|이랑|와|과|하고|또는|아니면)\s*'
+            r'([가-힣a-zA-Z0-9]+(?:용|기|판|대|차|보드|크|폰|북|탑|백|백팩|장|화)?)',
+            q_norm
+        )
+        if pattern:
+            a, b = pattern.group(1).strip(), pattern.group(2).strip()
+            if a and b and a != b and len(a) >= 2 and len(b) >= 2:
+                return [a, b]
 
         # ── LLM 폴백: 비교 의도 감지 ──
-        # "어떤게 좋을까", "뭐가 나을까" 같은 패턴이 있을 때만 LLM 호출
         compare_signals = ["어떤", "뭐가", "무엇이", "좋을까", "나을까", "추천", "비교", "고민"]
         if sum(1 for s in compare_signals if s in q_norm) >= 2:
             return self._llm_detect_vs(q_norm)
+
         return []
 
     def _llm_detect_vs(self, q: str) -> List[str]:
-        """LLM으로 VS 선택지 동적 감지"""
-        import os, json, urllib.request
-        api_key = os.environ.get('ANTHROPIC_API_KEY', '')
-        if not api_key:
-            return []
+        """LLM으로 VS 선택지 동적 감지 - Anthropic 우선, OpenAI 폴백"""
+        import os, json, urllib.request, re as re2
+
         prompt = f"""사용자 질문: "{q}"
 
 이 질문에서 비교 대상이 되는 두 가지 선택지를 추출하세요.
@@ -555,29 +566,75 @@ class DecisionStructureEngine:
 {{"options": []}}
 
 다른 텍스트 없이 JSON만 출력하세요."""
-        try:
-            body = json.dumps({
-                'model': 'claude-haiku-4-5-20251001',
-                'max_tokens': 100,
-                'messages': [{'role': 'user', 'content': prompt}]
-            }).encode()
-            req = urllib.request.Request(
-                'https://api.anthropic.com/v1/messages',
-                data=body,
-                headers={
-                    'Content-Type': 'application/json',
-                    'x-api-key': api_key,
-                    'anthropic-version': '2023-06-01'
-                },
-                method='POST'
-            )
-            res = urllib.request.urlopen(req, timeout=3)
-            data = json.loads(res.read())
-            text = data['content'][0]['text'].strip()
-            parsed = json.loads(text)
-            return parsed.get('options', [])[:2]
-        except:
-            return []
+
+        def parse_result(text):
+            text = text.strip()
+            # ```json ... ``` 제거
+            text = re2.sub(r'```json|```', '', text).strip()
+            try:
+                parsed = json.loads(text)
+                opts = parsed.get('options', [])
+                return [str(o) for o in opts[:2]] if len(opts) >= 2 else []
+            except:
+                return []
+
+        # 1차: Anthropic
+        anthropic_key = os.environ.get('ANTHROPIC_API_KEY', '')
+        if anthropic_key:
+            try:
+                body = json.dumps({
+                    'model': 'claude-haiku-4-5-20251001',
+                    'max_tokens': 150,
+                    'messages': [{'role': 'user', 'content': prompt}]
+                }).encode()
+                req = urllib.request.Request(
+                    'https://api.anthropic.com/v1/messages',
+                    data=body,
+                    headers={
+                        'Content-Type': 'application/json',
+                        'x-api-key': anthropic_key,
+                        'anthropic-version': '2023-06-01'
+                    },
+                    method='POST'
+                )
+                res = urllib.request.urlopen(req, timeout=5)
+                data = json.loads(res.read())
+                result = parse_result(data['content'][0]['text'])
+                if result:
+                    return result
+            except Exception as e:
+                print(f'[VS LLM Anthropic 오류] {e}')
+
+        # 2차: OpenAI 폴백
+        openai_key = os.environ.get('OPENAI_API_KEY', '')
+        if openai_key:
+            try:
+                body = json.dumps({
+                    'model': 'gpt-4o-mini',
+                    'max_tokens': 150,
+                    'messages': [
+                        {'role': 'system', 'content': 'JSON만 출력하세요.'},
+                        {'role': 'user', 'content': prompt}
+                    ]
+                }).encode()
+                req = urllib.request.Request(
+                    'https://api.openai.com/v1/chat/completions',
+                    data=body,
+                    headers={
+                        'Content-Type': 'application/json',
+                        'Authorization': f'Bearer {openai_key}'
+                    },
+                    method='POST'
+                )
+                res = urllib.request.urlopen(req, timeout=5)
+                data = json.loads(res.read())
+                result = parse_result(data['choices'][0]['message']['content'])
+                if result:
+                    return result
+            except Exception as e:
+                print(f'[VS LLM OpenAI 오류] {e}')
+
+        return []
 
     def _need_multi_candidate(self, q: str, s: SensorState) -> bool:
         if s.vs_detected or s.direct_mapping or s.desire or s.bundle or s.solution:
@@ -654,11 +711,9 @@ class DecisionStructureEngine:
         return self._llm_build_vs_explanation(options)
 
     def _llm_build_vs_explanation(self, options: List[str]) -> str:
-        """하드코딩 없는 VS 설명 LLM 동적 생성"""
+        """하드코딩 없는 VS 설명 LLM 동적 생성 - Anthropic 우선, OpenAI 폴백"""
         import os, json, urllib.request
-        api_key = os.environ.get('ANTHROPIC_API_KEY', '')
-        if not api_key:
-            return f"어떤 쪽이 더 맞으세요?\n\n{options[0]} → ?\n{options[1]} → ?"
+        fallback = f"어떤 쪽이 더 맞으세요?\n\n{options[0]} → 핵심 차이 확인 필요\n{options[1]} → 핵심 차이 확인 필요"
         prompt = f""""{options[0]}" vs "{options[1]}" 비교 설명을 만들어주세요.
 
 반드시 아래 형식으로만 출력하세요 (다른 말 절대 금지):
@@ -666,27 +721,50 @@ class DecisionStructureEngine:
 
 {options[0]} → 핵심 장점 한 줄
 {options[1]} → 핵심 장점 한 줄"""
-        try:
-            body = json.dumps({
-                'model': 'claude-haiku-4-5-20251001',
-                'max_tokens': 150,
-                'messages': [{'role': 'user', 'content': prompt}]
-            }).encode()
-            req = urllib.request.Request(
-                'https://api.anthropic.com/v1/messages',
-                data=body,
-                headers={
-                    'Content-Type': 'application/json',
-                    'x-api-key': api_key,
-                    'anthropic-version': '2023-06-01'
-                },
-                method='POST'
-            )
-            res = urllib.request.urlopen(req, timeout=5)
-            data = json.loads(res.read())
-            return data['content'][0]['text'].strip()
-        except:
-            return f"어떤 쪽이 더 맞으세요?\n\n{options[0]} → 핵심 차이 확인 필요\n{options[1]} → 핵심 차이 확인 필요"
+
+        # 1차: Anthropic
+        anthropic_key = os.environ.get('ANTHROPIC_API_KEY', '')
+        if anthropic_key:
+            try:
+                body = json.dumps({
+                    'model': 'claude-haiku-4-5-20251001',
+                    'max_tokens': 150,
+                    'messages': [{'role': 'user', 'content': prompt}]
+                }).encode()
+                req = urllib.request.Request(
+                    'https://api.anthropic.com/v1/messages',
+                    data=body,
+                    headers={'Content-Type': 'application/json', 'x-api-key': anthropic_key, 'anthropic-version': '2023-06-01'},
+                    method='POST'
+                )
+                res = urllib.request.urlopen(req, timeout=5)
+                data = json.loads(res.read())
+                return data['content'][0]['text'].strip()
+            except Exception as e:
+                print(f'[VS설명 Anthropic 오류] {e}')
+
+        # 2차: OpenAI 폴백
+        openai_key = os.environ.get('OPENAI_API_KEY', '')
+        if openai_key:
+            try:
+                body = json.dumps({
+                    'model': 'gpt-4o-mini',
+                    'max_tokens': 150,
+                    'messages': [{'role': 'user', 'content': prompt}]
+                }).encode()
+                req = urllib.request.Request(
+                    'https://api.openai.com/v1/chat/completions',
+                    data=body,
+                    headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {openai_key}'},
+                    method='POST'
+                )
+                res = urllib.request.urlopen(req, timeout=5)
+                data = json.loads(res.read())
+                return data['choices'][0]['message']['content'].strip()
+            except Exception as e:
+                print(f'[VS설명 OpenAI 오류] {e}')
+
+        return fallback
 
     def _board_after_vs(self, pair: Tuple[str, str]) -> str:
         if pair == ("노트북", "데스크탑"):
@@ -788,11 +866,34 @@ class DecisionStructureEngine:
             res = urllib.request.urlopen(req, timeout=5)
             data = json.loads(res.read())
             return data['content'][0]['text'].strip()
-        except:
-            return self._render_board([
-                ("용도", ["입문", "일반", "고급"]),
-                ("가격", ["저가", "중가", "고가"]),
-            ])
+        except Exception as e:
+            print(f'[상황판 Anthropic 오류] {e}')
+
+        # 2차: OpenAI 폴백
+        openai_key = os.environ.get('OPENAI_API_KEY', '')
+        if openai_key:
+            try:
+                body = json.dumps({
+                    'model': 'gpt-4o-mini',
+                    'max_tokens': 400,
+                    'messages': [{'role': 'user', 'content': prompt}]
+                }).encode()
+                req = urllib.request.Request(
+                    'https://api.openai.com/v1/chat/completions',
+                    data=body,
+                    headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {openai_key}'},
+                    method='POST'
+                )
+                res = urllib.request.urlopen(req, timeout=5)
+                data = json.loads(res.read())
+                return data['choices'][0]['message']['content'].strip()
+            except Exception as e:
+                print(f'[상황판 OpenAI 오류] {e}')
+
+        return self._render_board([
+            ("용도", ["입문", "일반", "고급"]),
+            ("가격", ["저가", "중가", "고가"]),
+        ])
 
     def _board_constraint(self) -> str:
         return self._render_board([
