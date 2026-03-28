@@ -89,28 +89,13 @@ function addTyping() {
 
 // ── 상황판 ──
 function isBoard(text) {
-  // 뉴 상황판: --- 구분선 + [E 직접입력] 포함
-  // 기존 상황판: [A ...] + [E 직접입력] 포함 (하위 호환)
-  const hasNewFormat = text.includes('---') && text.includes('[E 직접입력]');
-  const hasOldFormat = text.includes('[A ') && text.includes('[E 직접입력]');
-  return hasNewFormat || hasOldFormat;
+  return text.includes('[A ') && text.includes('[D ') && text.includes('[E 직접입력]');
 }
 
 function renderBoard(fullText) {
-  // 뉴 상황판: --- 구분선 기준으로 board 시작
-  // 기존 상황판: [A 로 시작
-  const isNewFormat = fullText.includes('---') && fullText.includes('[E 직접입력]');
-  let boardStart, empathy, boardText;
-
-  if (isNewFormat) {
-    boardStart = fullText.indexOf('---');
-    empathy    = boardStart > 0 ? fullText.substring(0, boardStart).trim() : '';
-    boardText  = fullText.substring(boardStart);
-  } else {
-    boardStart = fullText.indexOf('[A ');
-    empathy    = boardStart > 0 ? fullText.substring(0, boardStart).trim() : '';
-    boardText  = boardStart > 0 ? fullText.substring(boardStart) : fullText;
-  }
+  const boardStart = fullText.indexOf('[A ');
+  const empathy = boardStart > 0 ? fullText.substring(0, boardStart).trim() : '';
+  const boardText = boardStart > 0 ? fullText.substring(boardStart) : fullText;
 
   if (empathy) {
     const wrap = document.createElement('div');
@@ -143,34 +128,21 @@ function renderBoard(fullText) {
 
   const selections = {};
   let directInput = null;
-  let rowIndex = 0;
 
   lines.forEach(line => {
-    // --- 구분선 스킵
-    if (line.trim().startsWith('---')) return;
-
-    // [E 직접입력] 또는 [E ...] 감지 (기존 + 뉴 포맷)
-    const isDirectInput = line.includes('[E 직접입력]') || line.match(/^\[E\s/);
-
-    // 뉴 포맷: [한글라벨] 또는 기존 포맷: [A 항목명]
-    const match = line.match(/\[([^\]]+)\]\s*(.*)/);
+    const match = line.match(/\[([A-E][^\]]*)\]\s*(.*)/);
     if (!match) return;
-
-    const label   = match[1].trim();
+    const label = match[1].trim();
     const content = match[2].trim();
-    // 기존 포맷은 첫 글자가 A~E, 뉴 포맷은 한글
-    const isOldFormat = /^[A-E](\s|$)/.test(label);
-    const key = isOldFormat ? label[0] : `row_${rowIndex++}`;
-    const isE = label.startsWith('E ') || label === 'E 직접입력' || label === 'E';
-
+    const key = label[0];
     const row = document.createElement('div');
     row.className = 'board-row';
     const lbl = document.createElement('div');
-    lbl.className = isE ? 'board-label label-e' : 'board-label';
+    lbl.className = key === 'E' ? 'board-label label-e' : 'board-label';
     lbl.textContent = `[${label}]`;
     row.appendChild(lbl);
 
-    if (isE) {
+    if (key === 'E') {
       const inp = document.createElement('input');
       inp.className = 'board-direct';
       inp.placeholder = '직접 입력하세요...';

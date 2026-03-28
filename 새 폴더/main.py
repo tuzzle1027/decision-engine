@@ -23,7 +23,7 @@ from policy_layer       import SYSTEM_RULES, POLICE_RULES
 from review_collectors  import CollectorManager
 from review_engines     import ReviewEngine
 
-VERSION = 'v15'
+VERSION = 'v14'
 
 # ── API 키 (환경변수에서만 읽기) ──
 OPENAI_API_KEY    = os.environ.get('OPENAI_API_KEY', '')
@@ -122,42 +122,87 @@ def _init_session(session):
 
 
 # ===============================
-# 1단계: 상황판 (situation_layer)
+# 1단계: 공감 멘트 + LLM 상황판 생성
 # ===============================
-from situation_layer import DecisionStructureEngine as SituationEngine
-_situation = SituationEngine()
+BOARD_SYSTEM = """당신은 쇼핑 상황판을 만드는 전문가입니다.
 
-def make_board(raw_text, session=None):
-    """situation_layer로 상황판 생성"""
-    result = _situation.respond(raw_text, session=session or {})
-    render = result['render']
-    mode   = result['mode']
+[규칙 1] 제품명 분해
+- 수식어(아기, 여성용, 휴대용 등)와 핵심명사(독서대, 가방 등)를 분리
+- 수식어 있으면 → A = 수식어 관련 속성
+- 수식어 없으면 → A = 핵심명사의 용도/목적
 
-    # VS Mode 1단계: 설명만 반환 (board 없음)
-    if mode == 'vs_mode':
-        options = result['sensor_state'].get('options', [])
-        return {
-            'type': 'vs_explain',
-            'text': render.get('explanation', ''),
-            'vs_options': options
-        }
+[규칙 2] 물리 세계 논리 (절대 위반 금지)
+- 독서대 → 패브릭 소재 ❌
+- 자동차 → 소재 ❌
+- 실제 구매 기준이 되는 속성만
 
-    # 상황판 조합: 설명 + 컬러 + board
-    parts = []
-    if render.get('explanation'):
-        parts.append(render['explanation'])
-    if render.get('pre_input'):
-        parts.append(render['pre_input'])
-    if render.get('color_layer'):
-        parts.append(render['color_layer'])
-    if render.get('board'):
-        parts.append(render['board'])
+[규칙 3] 속성 배분
+- A = 수식어 속성 OR 핵심 용도/목적
+- B = 물리적 속성 (소재/방식/타입)
+- C = 기능/조건 속성
+- D = 예산 (항상 포함, 현실적인 가격대)
+- E = 직접입력 (제품 관련 힌트 문구 포함)
 
-    return {
-        'type': 'board',
-        'text': '\n\n'.join(parts),
-        'mode': mode
+[규칙 4] 옵션 품질
+- 실제 시장에 존재하는 것만
+- 옵션은 서로 명확하게 구분
+
+[출력 형식 - 반드시 지키세요]
+BOARD_START
+[A 항목명] 옵션1 / 옵션2 / 옵션3
+[B 항목명] 옵션1 / 옵션2 / 옵션3
+[C 항목명] 옵션1 / 옵션2 / 옵션3
+[D 예산] 가격1 / 가격2 / 가격3
+[E 직접입력] 힌트문구
+BOARD_END"""
+
+def make_board_with_llm(product_name, raw_text):
+    """LLM이 상황판 생성 - 물리 세계 논리 적용"""
+
+    # E 직접입력 힌트 - 제품별 변수
+    e_hints = {
+        '노트북': '"발열 없는 거" "게임할 때 버벅이면 안돼요"',
+        '가방':  '"기내 반입 되는 거" "바퀴가 잘 굴러가는 거"',
+        '독서대': '"던져도 부서지지 않는 거" "모서리가 날카롭지 않은 거"',
+        '유모차': '"한 손으로 접히는 거" "계단에서 들기 편한 거"',
+        '카시트': '"설치가 쉬운 거" "아이가 편안한 거"',
     }
+    hint = '"직접 입력해주신 한 마디가 더 정확한 제품을 찾아드려요"'
+    for k, v in e_hints.items():
+        if k in raw_text or k in product_name:
+            hint = v
+            break
+
+    prompt = f"""제품명: "{raw_text}"
+
+위 제품의 구매 상황판을 만들어주세요.
+E 직접입력 힌트: {hint}
+
+반드시 아래 형식으로 출력하세요:
+BOARD_START
+[A 항목명] 옵션1 / 옵션2 / 옵션3
+[B 항목명] 옵션1 / 옵션2 / 옵션3
+[C 항목명] 옵션1 / 옵션2 / 옵션3
+[D 예산] 가격1 / 가격2 / 가격3
+[E 직접입력] {hint}
+이런 표현도 다 이해해요 😊
+BOARD_END"""
+
+    result = call_llm(prompt, system=BOARD_SYSTEM, max_tokens=400)
+
+    # BOARD_START ~ BOARD_END 추출
+    if 'BOARD_START' in result and 'BOARD_END' in result:
+        start = result.find('BOARD_START') + len('BOARD_START')
+        end   = result.find('BOARD_END')
+        return result[start:end].strip()
+
+    # 파싱 실패시 폴백
+    return f"""[A 용도] 가정용 / 사무용 / 선물용
+[B 소재] 플라스틱 / 나무 / 금속
+[C 기능] 기본형 / 기능형 / 프리미엄
+[D 예산] 5만원 이하 / 5~15만원 / 15만원 이상
+[E 직접입력] {hint}
+이런 표현도 다 이해해요 😊"""
 
 
 # ===============================
@@ -304,13 +349,6 @@ def decision_engine(user_input, session=None):
     raw_text = ocr['clean']
     stage    = session.get('stage')
 
-    # ── VS 대기: 사용자가 VS에서 선택 → 상황판 진입 ──
-    if stage == 'vs_wait':
-        session['vs_choice'] = raw_text
-        board_result = make_board(raw_text, session)
-        session['stage'] = 'board_shown'
-        return board_result['text']
-
     # ── 3단계: 확인 후 추가 요청 ──
     if stage == 'confirm_add':
         session['stage'] = 'selected'
@@ -341,9 +379,10 @@ def decision_engine(user_input, session=None):
         else:
             session['stage'] = None
             session['selections'] = ''
-            board_result = make_board(session.get('raw_product', raw_text), session)
+            product = classify_product(raw_text if not session.get('raw_product') else session.get('raw_product'))
+            board = make_board_with_llm(session.get('product_name', ''), session.get('raw_product', raw_text))
             session['stage'] = 'board_shown'
-            return "다시 선택해주세요 😊\n\n" + board_result['text']
+            return "다시 선택해주세요 😊\n\n" + board
 
     # ── 1.5단계: 상황판 선택 완료 → LLM 요약 확인 ──
     if stage == 'board_shown':
@@ -390,23 +429,18 @@ Drive: N={drive.get('N')} W={drive.get('W')} Ψ={drive.get('Psi')}
 질문이나 상황판 금지.
 """, max_tokens=80).strip()
 
-    # situation_layer 상황판
-    board_result = make_board(raw_text, session)
+    # LLM 상황판
+    board = make_board_with_llm(product.get('product_name', raw_text), raw_text)
 
     # 1단계 제약 감지 세션 저장
     step1_interventions = scores.get('constraint_interventions', [])
     session['step1_constraints'] = [c['constraint'] for c in step1_interventions]
+
+    session['stage']       = 'board_shown'
     session['product_name'] = product.get('product_name', raw_text)
-    session['raw_product']  = raw_text
+    session['raw_product'] = raw_text
 
-    # VS Mode: 설명만 먼저, 상황판 대기
-    if board_result['type'] == 'vs_explain':
-        session['stage']      = 'vs_wait'
-        session['vs_options'] = board_result.get('vs_options', [])
-        return empathy + "\n\n" + board_result['text']
-
-    session['stage'] = 'board_shown'
-    return empathy + "\n\n" + board_result['text']
+    return empathy + "\n\n" + board
 
 
 # ===============================
