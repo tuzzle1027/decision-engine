@@ -26,7 +26,10 @@
   <div class="start-input-wrap">
     <textarea id="start-input" placeholder="찾으시는 제품을 입력해주세요..." rows="1"></textarea>
     <div class="start-input-footer">
-      <span style="font-size:12px;color:var(--text-dim);">AI Review Reverse Engine</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:12px;color:var(--text-dim);">AI Review Reverse Engine</span>
+        <button onclick="toggleMusic()" title="배경음악" style="background:none;border:none;cursor:pointer;font-size:14px;opacity:0.5;transition:opacity 0.2s;" id="startMusicBtn">🎵</button>
+      </div>
       <div style="display:flex;gap:6px;">
         <button id="startMicBtn" onclick="toggleStartVoice()" style="width:34px;height:34px;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;">
           <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:var(--text-dim);"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zm-1 19.93c-3.95-.49-7-3.85-7-7.93h2c0 3.31 2.69 6 6 6s6-2.69 6-6h2c0 4.08-3.05 7.44-7 7.93V23h-2v-2.07z"/></svg>
@@ -58,7 +61,7 @@
         </div>
       </div>
       <div class="status"><div class="dot"></div><span id="versionTag">live</span></div>
-      <button id="musicBtn" onclick="toggleMusic()" title="배경음악">🎵</button>
+      <button id="musicBtn" onclick="toggleMusic()" title="배경음악" style="background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;flex-shrink:0;-webkit-appearance:none;">🎵</button>
     </div>
   </header>
 
@@ -92,17 +95,24 @@ const bgMusic = document.getElementById('bgMusic');
 const musicBtn = document.getElementById('musicBtn');
 bgMusic.volume = 0.08;
 
+function _syncMusicBtns(playing) {
+  const icon = playing ? '🔇' : '🎵';
+  const opacity = playing ? '1.0' : '0.5';
+  ['musicBtn','startMusicBtn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = icon; el.style.opacity = opacity; }
+  });
+}
+
 function toggleMusic() {
   if (musicPlaying) {
     bgMusic.pause();
-    musicBtn.textContent = '🎵';
-    musicBtn.style.opacity = '0.5';
     musicPlaying = false;
+    _syncMusicBtns(false);
   } else {
     bgMusic.play().then(() => {
-      musicBtn.textContent = '🔇';
-      musicBtn.style.opacity = '1.0';
       musicPlaying = true;
+      _syncMusicBtns(true);
     }).catch(() => {});
   }
 }
@@ -111,9 +121,8 @@ function toggleMusic() {
 function _autoPlayMusic() {
   if (!musicPlaying) {
     bgMusic.play().then(() => {
-      musicBtn.textContent = '🔇';
-      musicBtn.style.opacity = '1.0';
       musicPlaying = true;
+      _syncMusicBtns(true);
     }).catch(() => {});
   }
 }

@@ -267,3 +267,19 @@ header{
   margin-left: 6px !important;
 }
 #musicBtn:hover { border-color: var(--accent) !important; }
+
+/* iOS 음악 버튼 대응 */
+#musicBtn {
+  -webkit-appearance: none;
+  appearance: none;
+  flex-shrink: 0 !important;
+  min-width: 34px !important;
+}
+@media (max-width: 480px) {
+  #musicBtn {
+    width: 30px !important;
+    height: 30px !important;
+    font-size: 13px !important;
+  }
+  .status { font-size: 10px; }
+}
