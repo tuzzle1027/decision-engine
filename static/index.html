@@ -84,16 +84,30 @@
 
 <script src="/static/app.js"></script>
 
-<!-- 배경음악 -->
-<audio id="bgMusic" loop>
-  <source src="https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3" type="audio/mpeg">
-</audio>
+<!-- 배경음악 플레이리스트 -->
+<audio id="bgMusic"></audio>
 
 <script>
+// 로파이 플레이리스트 5곡 (저작권 없음)
+const PLAYLIST = [
+  'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3',
+  'https://cdn.pixabay.com/download/audio/2022/08/02/audio_884fe92c21.mp3',
+  'https://cdn.pixabay.com/download/audio/2022/03/10/audio_c8c8a73467.mp3',
+  'https://cdn.pixabay.com/download/audio/2021/11/25/audio_5beba3b6e4.mp3',
+  'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0c6ff1bab.mp3',
+];
+
 let musicPlaying = false;
+let currentTrack = 0;
 const bgMusic = document.getElementById('bgMusic');
-const musicBtn = document.getElementById('musicBtn');
 bgMusic.volume = 0.08;
+
+// 트랙 종료 시 다음 곡으로
+bgMusic.addEventListener('ended', () => {
+  currentTrack = (currentTrack + 1) % PLAYLIST.length;
+  bgMusic.src = PLAYLIST[currentTrack];
+  bgMusic.play().catch(() => {});
+});
 
 function _syncMusicBtns(playing) {
   const icon = playing ? '🔇' : '🎵';
@@ -110,6 +124,10 @@ function toggleMusic() {
     musicPlaying = false;
     _syncMusicBtns(false);
   } else {
+    if (!bgMusic.src || bgMusic.src === window.location.href) {
+      currentTrack = Math.floor(Math.random() * PLAYLIST.length);
+      bgMusic.src = PLAYLIST[currentTrack];
+    }
     bgMusic.play().then(() => {
       musicPlaying = true;
       _syncMusicBtns(true);
@@ -117,9 +135,10 @@ function toggleMusic() {
   }
 }
 
-// 시작 버튼/칩 클릭 시 자동 재생
 function _autoPlayMusic() {
   if (!musicPlaying) {
+    currentTrack = Math.floor(Math.random() * PLAYLIST.length);
+    bgMusic.src = PLAYLIST[currentTrack];
     bgMusic.play().then(() => {
       musicPlaying = true;
       _syncMusicBtns(true);
