@@ -58,6 +58,10 @@
         </div>
       </div>
       <div class="status"><div class="dot"></div><span id="versionTag">live</span></div>
+      <button id="musicBtn" onclick="toggleMusic()" title="배경음악" style="
+        background:none;border:none;cursor:pointer;font-size:18px;
+        opacity:0.5;transition:opacity 0.2s;margin-left:8px;
+      ">🎵</button>
     </div>
   </header>
 
@@ -79,5 +83,60 @@
 </div>
 
 <script src="/static/app.js"></script>
+
+<!-- 배경음악 -->
+<audio id="bgMusic" loop>
+  <source src="https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3" type="audio/mpeg">
+</audio>
+
+<script>
+let musicPlaying = false;
+const bgMusic = document.getElementById('bgMusic');
+const musicBtn = document.getElementById('musicBtn');
+bgMusic.volume = 0.08;
+
+function toggleMusic() {
+  if (musicPlaying) {
+    bgMusic.pause();
+    musicBtn.style.opacity = '0.5';
+    musicPlaying = false;
+  } else {
+    bgMusic.play().then(() => {
+      musicBtn.style.opacity = '1.0';
+      musicPlaying = true;
+    }).catch(() => {});
+  }
+}
+
+// 시작 페이지 "쇼핑 시작" 클릭 시 자동 재생
+const _origStartChat = window.startChat;
+document.addEventListener('DOMContentLoaded', () => {
+  // startChat 래핑은 app.js 로드 후
+  setTimeout(() => {
+    const startBtn = document.querySelector('.start-send-btn');
+    if (startBtn) {
+      startBtn.addEventListener('click', () => {
+        if (!musicPlaying) {
+          bgMusic.play().then(() => {
+            musicBtn.style.opacity = '1.0';
+            musicPlaying = true;
+          }).catch(() => {});
+        }
+      });
+    }
+    // chip 클릭 시도
+    document.querySelectorAll('.start-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        if (!musicPlaying) {
+          bgMusic.play().then(() => {
+            musicBtn.style.opacity = '1.0';
+            musicPlaying = true;
+          }).catch(() => {});
+        }
+      });
+    });
+  }, 500);
+});
+</script>
 </body>
 </html>
