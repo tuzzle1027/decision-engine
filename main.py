@@ -206,8 +206,23 @@ def make_board_new(raw_text, session=None):
             'items': items
         }
 
-    # 2구역: Context 선택 필요
+    # 2구역: large_category / brand_category → Context 선택
     if zone == '2':
+        if mode == 'large_category':
+            items = route_result.get('items', [])
+            return {
+                'type': 'context_select',
+                'text': 'CONTEXT_SELECT:' + '/'.join(items)
+            }
+        if mode == 'brand_category':
+            # 브랜드+카테고리 → LLM 폴백
+            from situation_layer.boards.board_llm import get_board as llm_b
+            board_text = llm_b(product=f'{brand} {product}')
+            return {
+                'type': 'board',
+                'text': board_text
+            }
+        # 일반 context_select
         board_text = _get_new_board(product, context=context_val)
         if board_text and board_text.startswith('CONTEXT_SELECT:'):
             return {
@@ -217,7 +232,6 @@ def make_board_new(raw_text, session=None):
 
     # 3구역: 상황판 생성
     if zone == '3' or zone == '2':
-        # session에서 context 읽기
         ctx = session.get('context') if session else None
         ctx = ctx or context_val
 
@@ -245,6 +259,7 @@ def make_board(raw_text, session=None):
 
     # 새 라우터 먼저 시도
     new_result = make_board_new(raw_text, session)
+    print(f'[라우터 결과] {raw_text[:20]} → {new_result}')
     if new_result:
         return new_result
 
@@ -551,13 +566,26 @@ Drive: N={drive.get('N')} W={drive.get('W')} Ψ={drive.get('Psi')}
     session['product_name'] = product.get('product_name', raw_text)
     session['raw_product']  = raw_text
 
+    # 0구역: 브랜드만 입력 → 되물음
+    if board_result['type'] == 'brand_ask':
+        return empathy + "\n\n" + board_result['text']
+
+    # Solution Mode: 취미/활동
+    if board_result['type'] == 'solution':
+        session['stage'] = 'board_shown'
+        return empathy + "\n\n" + board_result['text']
+
+    # Direct Mode: 트렌드 검색
+    if board_result['type'] == 'direct_search':
+        session['stage'] = 'board_shown'
+        return empathy + "\n\n" + board_result['text']
+
     # VS Mode: 설명만 먼저, 상황판 대기
     if board_result['type'] == 'vs_explain':
         session['stage']      = 'vs_wait'
         session['vs_options'] = board_result.get('vs_options', [])
         vs_options_str = '/'.join(board_result.get('vs_options', []))
         vs_text = board_result['text']
-        # 선택 버튼 태그 추가
         vs_text += f"\n\nVS_SELECT:{vs_options_str}"
         return empathy + "\n\n" + vs_text
 
