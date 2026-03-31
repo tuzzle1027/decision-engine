@@ -155,11 +155,100 @@ BOARD_END"""
 # ===============================
 # 1단계: 상황판 (situation_layer)
 # ===============================
-from situation_layer import DecisionStructureEngine as SituationEngine
+from situation_engine import DecisionStructureEngine as SituationEngine
 _situation = SituationEngine()
 
+# ── 새 분리기 + 상황판 모듈 연결 ──
+try:
+    from situation_layer.router import route as _route
+    from situation_layer.boards import get_board as _get_new_board
+    _NEW_ROUTER_ENABLED = True
+except Exception as e:
+    print(f'[새 라우터 로드 실패] {e}')
+    _NEW_ROUTER_ENABLED = False
+
+def make_board_new(raw_text, session=None):
+    """새 분리기 + 상황판 모듈로 상황판 생성"""
+    if not _NEW_ROUTER_ENABLED:
+        return None
+
+    route_result = _route(raw_text)
+    zone = route_result.get('zone')
+    mode = route_result.get('mode')
+    product = route_result.get('product', '')
+    brand = route_result.get('brand', '')
+    context_val = route_result.get('context', '')
+
+    # 0구역: 브랜드만 → 되물음
+    if zone == '0':
+        return {
+            'type': 'brand_ask',
+            'text': route_result.get('message', '어떤 제품 찾으세요? 😊')
+        }
+
+    # Direct Mode: 트렌드 키워드 → 바로 검색
+    if zone == 'direct':
+        return {
+            'type': 'direct_search',
+            'text': raw_text,
+            'product': product
+        }
+
+    # Solution Mode: 취미/활동
+    if zone == 'solution':
+        items = route_result.get('items', [])
+        copy = route_result.get('message', '')
+        items_text = ' / '.join(items)
+        solution_text = copy + "\n\n필요한 것들:\n" + items_text
+        return {
+            'type': 'solution',
+            'text': solution_text,
+            'items': items
+        }
+
+    # 2구역: Context 선택 필요
+    if zone == '2':
+        board_text = _get_new_board(product, context=context_val)
+        if board_text and board_text.startswith('CONTEXT_SELECT:'):
+            return {
+                'type': 'context_select',
+                'text': board_text
+            }
+
+    # 3구역: 상황판 생성
+    if zone == '3' or zone == '2':
+        # session에서 context 읽기
+        ctx = session.get('context') if session else None
+        ctx = ctx or context_val
+
+        # 이케아 브랜드면 context에 이케아 반영
+        if brand == '이케아' and product in ['소파', '쇼파']:
+            ctx = '이케아'
+
+        board_text = _get_new_board(product, context=ctx)
+        if board_text and board_text.startswith('CONTEXT_SELECT:'):
+            return {
+                'type': 'context_select',
+                'text': board_text
+            }
+        if board_text:
+            return {
+                'type': 'board',
+                'text': board_text
+            }
+
+    return None
+
+
 def make_board(raw_text, session=None):
-    """situation_layer로 상황판 생성"""
+    """situation_layer로 상황판 생성 - 새 라우터 우선 시도"""
+
+    # 새 라우터 먼저 시도
+    new_result = make_board_new(raw_text, session)
+    if new_result:
+        return new_result
+
+    # 기존 situation_layer 폴백
     result = _situation.respond(raw_text, session=session or {})
     render = result['render']
     mode   = result['mode']
