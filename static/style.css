@@ -148,6 +148,11 @@ header{
 .btn-yes:hover{opacity:0.85;}
 .btn-add{background:var(--surface);border:1.5px solid var(--selected);color:var(--selected);}
 .btn-add:hover{background:var(--selected);color:white;}
+.confirm-btn.selected{background:var(--selected);color:white;border-color:var(--selected);}
+.btn-next{background:var(--accent,#e85d4a);color:white;border:none;margin-top:8px;width:100%;font-size:15px;padding:10px 18px;}
+.btn-next:hover{opacity:0.9;}
+.btn-custom{background:transparent;border:1.5px dashed #aaa;color:#888;margin-top:4px;}
+.btn-custom:hover{border-color:var(--selected);color:var(--selected);}
 .btn-no{background:var(--surface);border:1px solid var(--border);color:var(--text-dim);}
 .btn-no:hover{border-color:var(--neg);color:var(--neg);}
 
@@ -232,54 +237,3 @@ header{
 #micBtn svg{width:14px;height:14px;fill:var(--text-dim);}
 #micBtn.recording svg{fill:white;}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
-
-/* 음악 버튼 */
-#musicBtn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 16px;
-  opacity: 0.5;
-  transition: opacity 0.2s, transform 0.15s;
-  margin-left: 8px;
-  padding: 4px;
-  border-radius: 8px;
-}
-#musicBtn:hover {
-  opacity: 0.9;
-  transform: scale(1.15);
-}
-
-/* 음악 버튼 강제 표시 */
-#musicBtn {
-  background: var(--surface2) !important;
-  border: 1.5px solid var(--border) !important;
-  border-radius: 10px !important;
-  cursor: pointer !important;
-  font-size: 14px !important;
-  width: 34px !important;
-  height: 34px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  flex-shrink: 0 !important;
-  transition: all 0.15s !important;
-  margin-left: 6px !important;
-}
-#musicBtn:hover { border-color: var(--accent) !important; }
-
-/* iOS 음악 버튼 대응 */
-#musicBtn {
-  -webkit-appearance: none;
-  appearance: none;
-  flex-shrink: 0 !important;
-  min-width: 34px !important;
-}
-@media (max-width: 480px) {
-  #musicBtn {
-    width: 30px !important;
-    height: 30px !important;
-    font-size: 13px !important;
-  }
-  .status { font-size: 10px; }
-}

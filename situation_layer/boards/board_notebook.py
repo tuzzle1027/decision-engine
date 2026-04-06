@@ -85,4 +85,8 @@ def get_board(context: str = None, choice: str = None) -> str:
     if context and context in NOTEBOOK_BOARDS:
         return render_board(NOTEBOOK_BOARDS[context])
     # context 없으면 2구역 선택지 반환
+    # 없는 용도 → LLM 폴백
+    if context and context not in NOTEBOOK_BOARDS:
+        from .board_llm import get_board as llm_b
+        return llm_b(product=f'{context} 노트북')
     return 'CONTEXT_SELECT:' + '/'.join(NOTEBOOK_CONTEXTS)

@@ -47,4 +47,8 @@ def render_board(items):
 def get_board(context: str = None, choice: str = None) -> str:
     if context and context in REFRIGERATOR_BOARDS:
         return render_board(REFRIGERATOR_BOARDS[context])
+    # 없는 context → LLM 폴백
+    if context and context not in REFRIGERATOR_BOARDS:
+        from .board_llm import get_board as llm_b
+        return llm_b(product=f'{context} 냉장고')
     return 'CONTEXT_SELECT:' + '/'.join(REFRIGERATOR_CONTEXTS)

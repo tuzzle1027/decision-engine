@@ -167,12 +167,127 @@ except Exception as e:
     print(f'[새 라우터 로드 실패] {e}')
     _NEW_ROUTER_ENABLED = False
 
+def normalize_query(raw_text: str) -> str:
+    """LLM으로 사용자 입력 정규화 + 보드 옵션 힌트 기반 조건 추출"""
+
+    # ── 멀티 제품 감지 (소파 책상 추천해줘 등) ──
+    normalize_query._multi_products = []
+    KNOWN_PRODUCTS = [
+        '소파', '쇼파', '침대', '매트리스', '책상', '의자', '식탁', '옷장',
+        '서랍장', '책장', '커튼', '러그', '카페트', '조명', '노트북', '냉장고',
+        '청소기', '헤드폰', '이어폰', '수영복', '운동화', '러닝화',
+    ]
+    # 소파베드/소파침대는 단일 제품으로 먼저 체크 (소파+침대 멀티 오감지 방지)
+    SINGLE_COMPOUND = ['소파베드', '소파침대']
+    is_compound = any(kw in raw_text for kw in SINGLE_COMPOUND)
+    if not is_compound:
+        # 복합어 제거 후 남은 텍스트에서 감지 (소파침대→소파+침대 오감지 방지)
+        clean_text = raw_text
+        for compound in SINGLE_COMPOUND:
+            clean_text = clean_text.replace(compound, '')
+        found = [p for p in KNOWN_PRODUCTS if p in clean_text]
+        # 중복 제거 (소파/쇼파 같은 동의어)
+        seen = set()
+        unique_found = []
+        for p in found:
+            canonical = '소파' if p == '쇼파' else p
+            if canonical not in seen:
+                seen.add(canonical)
+                unique_found.append(p)
+        found = unique_found
+        # 2개 이상 감지 + 세트 제외
+        SET_PAIRS = {('침대', '매트리스'), ('매트리스', '침대')}
+        if len(found) >= 2:
+            pair = tuple(found[:2])
+            if pair not in SET_PAIRS:
+                normalize_query._multi_products = found[:2]
+                return raw_text
+
+    # 제품 키워드로 보드 옵션 힌트 준비
+    options_section = ''
+    try:
+        from situation_layer.boards.board_furniture import get_all_options
+        PRODUCT_KEYWORDS = {
+            '소파': ['소파', '쇼파'], '침대': ['침대'], '책상': ['책상'],
+            '옷장': ['옷장'], '서랍장': ['서랍장'], '책장': ['책장'],
+            '식탁': ['식탁'], '의자': ['의자'], '커튼': ['커튼'],
+            '러그': ['러그'], '매트리스': ['매트리스'],
+        }
+        for prod, keywords in PRODUCT_KEYWORDS.items():
+            if any(kw in raw_text for kw in keywords):
+                opts = get_all_options(prod)
+                if opts:
+                    lines = [f'{k}: {"/".join(v)}' for k, v in opts.items() if v]
+                    options_section = f"""
+아래는 [{prod}] 보드의 실제 옵션값입니다. 조건 추출 시 반드시 이 값으로 매핑하세요:
+""" + '\n'.join(lines)
+                break
+    except Exception:
+        pass
+
+    prompt = f"""쇼핑 AI입니다. 사용자 입력에서 제품명과 이미 결정된 조건을 분리하세요.
+
+출력 형식: 제품명 | 조건이름=값
+조건 없으면 제품명만 출력.
+{options_section}
+핵심 규칙:
+사용자 표현의 의미를 파악해서 보드 옵션값으로 정확히 매핑하세요.
+하드코딩된 단어 목록이 아니라 의미 기반으로 판단하세요.
+보드 옵션 목록이 있으면 반드시 그 중에서 선택하세요.
+
+가성비 규칙:
+가성비/저렴한/cheap/budget 등의 표현은 가격=저가로만 변환하세요.
+
+예를 들어:
+- 앉았을 때 느낌 → 좌방석쿠션 옵션값으로
+- 방수/젖어도/물에 강한 → 패브릭기능=방수
+- 세탁/청소 가능 여부 → 커버세탁=가능
+- 헤드있는/헤드형 → 헤드유무=헤드있음
+- 패브릭/천소파 → 소재=패브릭
+- 가성비/저렴한 → 가격=저가만
+
+예시:
+코너형 패브릭 소파 → 소파 | 형태=코너형 | 소재=패브릭
+4인용 방수 세탁 패브릭 소파 → 소파 | 소재=패브릭 | 인원수=4인용 | 패브릭기능=방수 | 커버세탁=가능
+헤드있는 싱글 침대 → 침대 | 사이즈=싱글 | 헤드유무=헤드있음
+비싸도 좋은 가죽 소파 → 소파 | 소재=가죽 | 가격=고가
+가성비 옷장 → 옷장 | 가격=저가
+
+반드시 한 줄만 출력.
+입력: {raw_text}
+출력:"""
+    try:
+        result = call_llm(prompt, max_tokens=100).strip()
+        result = result.split('\n')[0].strip()
+        if not result:
+            return raw_text
+
+        parts = [p.strip() for p in result.split('|')]
+        product_name = parts[0]
+        selected = {}
+        for part in parts[1:]:
+            if '=' in part:
+                k, v = part.split('=', 1)
+                selected[k.strip()] = v.strip()
+
+        print(f'[정규화] {raw_text} → {product_name} selected={selected}')
+
+        normalize_query._selected = selected
+        if product_name and len(product_name) < 50:
+            return product_name
+    except Exception as e:
+        print(f'[정규화 오류] {e}')
+    return raw_text
+
+
 def make_board_new(raw_text, session=None):
     """새 분리기 + 상황판 모듈로 상황판 생성"""
     if not _NEW_ROUTER_ENABLED:
         return None
 
-    route_result = _route(raw_text)
+    # LLM 정규화에서 추출한 선택된 조건 (route 전에 먼저!)
+    selected = getattr(normalize_query, '_selected', {})
+    route_result = _route(raw_text, selected=selected)
     zone = route_result.get('zone')
     mode = route_result.get('mode')
     product = route_result.get('product', '')
@@ -206,14 +321,36 @@ def make_board_new(raw_text, session=None):
             'items': items
         }
 
-    # 2구역: large_category / brand_category → Context 선택
+    # 2구역: ZONE_RULES 기반으로 자동 처리
     if zone == '2':
-        if mode == 'large_category':
-            items = route_result.get('items', [])
-            return {
-                'type': 'context_select',
-                'text': 'CONTEXT_SELECT:' + '/'.join(items)
-            }
+        from situation_layer.boards.board_furniture import get_zone, ZONE_RULES
+        rule = ZONE_RULES.get(product, {})
+
+        # selected 충분하면 → zone 3으로 올려서 아래서 처리
+        actual_zone = get_zone(product, selected)
+        if actual_zone == '3':
+            zone = '3'  # ← 핵심! zone 변수를 3으로 변경
+        else:
+            # context_key 이미 있으면 → sub 선택 (예: 인원수 있으면 소재 물어보기)
+            if rule.get('sub_key') and rule.get('context_key') and rule['context_key'] in selected:
+                sub_options = rule.get('sub_options', [])
+                return {
+                    'type': 'context_select',
+                    'text': 'CONTEXT_SELECT:' + '/'.join(sub_options)
+                }
+            # context_key 없으면 → context 선택지 보여줌
+            if rule.get('context_options'):
+                return {
+                    'type': 'context_select',
+                    'text': 'CONTEXT_SELECT:' + '/'.join(rule['context_options'])
+                }
+            # ZONE_RULES에 없는 제품 → router items 사용
+            if mode == 'large_category':
+                items = route_result.get('items', [])
+                return {
+                    'type': 'context_select',
+                    'text': 'CONTEXT_SELECT:' + '/'.join(items)
+                }
         if mode == 'brand_category':
             # 브랜드+카테고리 → LLM 폴백
             from situation_layer.boards.board_llm import get_board as llm_b
@@ -235,17 +372,40 @@ def make_board_new(raw_text, session=None):
         ctx = session.get('context') if session else None
         ctx = ctx or context_val
 
+        # selected에서 context 자동 추출 (ZONE_RULES 기반)
+        if not ctx and selected:
+            try:
+                from situation_layer.boards.board_furniture import resolve_context
+                ctx, _ = resolve_context(product, selected, ctx, None)
+            except Exception:
+                pass
+
         # 이케아 브랜드면 context에 이케아 반영
         if brand == '이케아' and product in ['소파', '쇼파']:
             ctx = '이케아'
 
-        board_text = _get_new_board(product, context=ctx)
+        board_text = _get_new_board(product, context=ctx, choice=selected)
+        print(f'[board_text] product={product} ctx={ctx} → {str(board_text)[:50]}')
+
         if board_text and board_text.startswith('CONTEXT_SELECT:'):
             return {
                 'type': 'context_select',
                 'text': board_text
             }
-        if board_text:
+
+        # [E 직접입력]만 남으면 → make_summary 자동 출력
+        if board_text and board_text.strip().replace('조건을 선택해주세요', '').strip().startswith('[E 직접입력]'):
+            selections_str = ' '.join([f'{k}:{v}' for k,v in selected.items()])
+            summary = make_summary(product, selections_str, session.get('raw_product', product))
+            return {'type': 'confirm', 'text': summary + '\n\nCONFIRM_BUTTONS'}
+        if board_text and not board_text.startswith('---'):
+            # LLM이 만든 엉터리 상황판 제외
+            return {
+                'type': 'board',
+                'text': board_text
+            }
+        if board_text and board_text.startswith('---'):
+            # LLM 폴백 결과 → None 반환해서 기존으로 안 가게
             return {
                 'type': 'board',
                 'text': board_text
@@ -352,20 +512,31 @@ def make_summary(product_name, selections, raw_product, constraint_keys=None):
 """
             constraint_notice = call_llm(notice_prompt, max_tokens=200).strip()
 
-    prompt = f"""
-사용자가 선택한 조건:
+    prompt = f"""고객이 찾는 제품 조건을 자연스럽고 따뜻한 한 문장으로 요약하세요.
+반드시 아래 형식으로만 출력하세요.
+
 제품: {raw_product}
-선택: {selections}
+선택조건: {selections}
 
-딱 2줄만 출력하세요.
-1줄: 선택 내용을 자연스러운 한 문장으로 요약 (이모지 포함)
-2줄: "이렇게 찾아드릴까요?"
+형식:
+쇼핑 검색 조건이 완성됐어요 고객님! 🛍️
+[조건을 자연스러운 한 문장으로 요약 + 이모지]
+이 조건으로 제품을 찾아볼까요?
 
-예시:
-"12개월 아기용, 목재 소재, 높이조절 가능한 5만원대 독서대를 찾으시는군요 😊"
-이렇게 찾아드릴까요?
-"""
-    summary = call_llm(prompt, max_tokens=150).strip()
+예시출력:
+쇼핑 검색 조건이 완성됐어요 고객님! 🛍️
+4인용 코너형 흰색 패브릭 소파, 푹신하고 방수되는 제품을 찾으시는군요 🛋️
+이 조건으로 제품을 찾아볼까요?"""
+    summary = call_llm(prompt, max_tokens=120).strip()
+    lines = [l for l in summary.split('\n') if l.strip()]
+    if len(lines) >= 3:
+        summary = lines[0] + '\n' + lines[1] + '\n' + lines[2]
+    elif len(lines) == 2:
+        summary = lines[0] + '\n' + lines[1] + '\n이 조건으로 제품을 찾아볼까요?'
+    elif lines:
+        summary = '쇼핑 검색 조건이 완성됐어요 고객님! 🛍️\n' + lines[0] + '\n이 조건으로 제품을 찾아볼까요?'
+    else:
+        summary = f"쇼핑 검색 조건이 완성됐어요 고객님! 🛍️\n{raw_product} 찾아드릴게요 😊\n이 조건으로 제품을 찾아볼까요?"
 
     # 제약 안내를 요약 아래에 붙이기
     if constraint_notice:
@@ -455,9 +626,55 @@ def decision_engine(user_input, session=None):
     raw_text = ocr['clean']
     stage    = session.get('stage')
 
+    # ── 1단계 최초 입력만 정규화 (context_wait 등은 제외) ──
+    if not stage:
+        raw_text = normalize_query(raw_text)
+
+    # ── 멀티 제품 감지 → MULTI_SELECT ──
+    if not stage:
+        multi = getattr(normalize_query, '_multi_products', [])
+        if multi:
+            session['multi_queue'] = multi[1:]
+            session['stage'] = 'multi_wait'
+            products_str = '/'.join(multi)
+            return f"두 가지 제품을 선택하셨네요! 하나씩 찾아볼까요? 😊\n\nMULTI_SELECT:{products_str}"
+
+    # ── 멀티 대기: 사용자가 MULTI_SELECT에서 선택 ──
+    if stage == 'multi_wait':
+        session['stage'] = None
+        raw_text = normalize_query(raw_text)
+
     # ── Context 대기: 가정/사무실/업소 선택 → 상황판 진입 ──
     if stage == 'context_wait':
+        # context 누적 (어린이→단행본→팝업북 순서 추적)
+        prev_context = session.get('context', '')
         session['context'] = raw_text
+
+        if _NEW_ROUTER_ENABLED:
+            try:
+                # 원래 product 정제
+                raw_product = session.get('raw_product', raw_text)
+                r = _route(raw_product)
+                clean_product = r.get('product', raw_product)
+
+                print(f'[context_wait] clean_product={clean_product} raw_text={raw_text} prev={prev_context}')
+
+                # 원래 product + 선택값(context) + 이전 selected
+                auto_selected = session.get('auto_selected', {})
+                board_text = _get_new_board(clean_product, context=raw_text, choice=auto_selected)
+                print(f'[context_wait board] {str(board_text)[:60]}')
+
+                # CONTEXT_SELECT면 계속 선택 진행
+                if board_text and board_text.startswith('CONTEXT_SELECT:'):
+                    return board_text
+
+                # 상황판 나오면 완료
+                if board_text and not board_text.startswith('CONTEXT_SELECT:'):
+                    session['stage'] = 'board_shown'
+                    return board_text
+            except Exception as e:
+                print(f'[context_wait 오류] {e}')
+
         board_result = make_board(session.get('raw_product', raw_text), session)
         session['stage'] = 'board_shown'
         return board_result['text']
@@ -470,6 +687,17 @@ def decision_engine(user_input, session=None):
         board_result = make_board(original, session)
         session['stage'] = 'board_shown'
         return board_result['text']
+
+    # ── 추가 조건 즉시 처리 ('추가 XXX' 형태면 stage 무관하게 바로 검색) ──
+    if raw_text.startswith('추가 ') and len(raw_text) > 3 and stage in ['confirm', 'confirm_add']:
+        extra = raw_text[3:].strip()
+        session['stage'] = 'selected'
+        return make_recommendation(
+            session.get('product_name', ''),
+            session.get('selections', ''),
+            extra=extra,
+            session=session
+        )
 
     # ── 3단계: 확인 후 추가 요청 ──
     if stage == 'confirm_add':
@@ -495,8 +723,27 @@ def decision_engine(user_input, session=None):
             )
         # "추가" → 추가 입력 받기
         elif any(w in raw_text for w in ['추가', '더', '그리고', '또', 'add']):
-            session['stage'] = 'confirm_add'
-            return "어떤 조건을 추가하시겠어요? 😊\n말씀해주시면 반영해서 찾아드릴게요!"
+            # '추가 배송 빠른 제품' 처럼 추가 뒤에 내용이 있으면 바로 검색
+            extra = raw_text
+            for prefix in ['추가 ', '추가:', '추가:']:
+                if raw_text.startswith(prefix):
+                    extra = raw_text[len(prefix):].strip()
+                    break
+            if extra and extra not in ['추가', '더', '그리고', '또', 'add']:
+                session['stage'] = 'selected'
+                return make_recommendation(
+                    session.get('product_name', ''),
+                    session.get('selections', ''),
+                    extra=extra,
+                    session=session
+                )
+            # 추가 내용 없으면 그냥 네로 처리
+            session['stage'] = 'selected'
+            return make_recommendation(
+                session.get('product_name', ''),
+                session.get('selections', ''),
+                session=session
+            )
         # "아니요" → 상황판 다시
         else:
             session['stage'] = None
@@ -504,6 +751,15 @@ def decision_engine(user_input, session=None):
             board_result = make_board(session.get('raw_product', raw_text), session)
             session['stage'] = 'board_shown'
             return "다시 선택해주세요 😊\n\n" + board_result['text']
+
+    # ── 추천 완료 후 멀티 큐 다음 제품 연결 ──
+    if stage == 'selected':
+        queue = session.get('multi_queue', [])
+        if queue:
+            next_product = queue.pop(0)
+            session['multi_queue'] = queue
+            session['stage'] = 'multi_wait'
+            return f"{next_product}도 찾아드릴까요? 😊\n\nMULTI_SELECT:{next_product}"
 
     # ── 1.5단계: 상황판 선택 완료 → LLM 요약 확인 ──
     if stage == 'board_shown':
@@ -592,6 +848,8 @@ Drive: N={drive.get('N')} W={drive.get('W')} Ψ={drive.get('Psi')}
     # Context 선택 필요: 버튼형 선택 대기
     if board_result['type'] == 'context_select':
         session['stage'] = 'context_wait'
+        # selected 저장 → context_wait에서 3구역 보드에 전달
+        session['auto_selected'] = getattr(normalize_query, '_selected', {})
         return empathy + "\n\n" + board_result['text']
 
     session['stage'] = 'board_shown'

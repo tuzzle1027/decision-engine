@@ -54,4 +54,8 @@ def get_board(context: str = None, choice: str = None) -> str:
     key = f'가정_{context}' if context else None
     if key and key in VACUUM_BOARDS:
         return render_board(VACUUM_BOARDS[key])
+    # 없는 context → LLM 폴백
+    if context and context not in ['가정용', '업소용'] and context not in VACUUM_HOME_CONTEXTS:
+        from .board_llm import get_board as llm_b
+        return llm_b(product=f'{context} 청소기')
     return 'CONTEXT_SELECT:' + '/'.join(VACUUM_CONTEXTS)

@@ -48,4 +48,8 @@ def get_board(context: str = None, choice: str = None) -> str:
     if context in ['트렁크', '보드숏', '래쉬가드', '원피스', '비키니', '탱키니']:
         return render_board(SWIMWEAR_BOARDS['레저'])
     # 기본 성별 선택
+    # 없는 context → LLM 폴백
+    if context and context not in SWIMWEAR_GENDER and context not in SWIMWEAR_TYPES:
+        from .board_llm import get_board as llm_b
+        return llm_b(product=f'{context} 수영복')
     return 'CONTEXT_SELECT:' + '/'.join(SWIMWEAR_GENDER)

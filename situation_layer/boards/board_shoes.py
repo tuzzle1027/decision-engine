@@ -96,4 +96,8 @@ def get_board(context: str = None, choice: str = None) -> str:
     if context and context in SHOES_BOARDS:
         return render_board(SHOES_BOARDS[context])
     # 기본 2구역
+    # 없는 context → LLM 폴백
+    if context and context not in SHOES_CONTEXTS and context not in RUNNING_CONTEXTS and context not in SHOES_BOARDS:
+        from .board_llm import get_board as llm_b
+        return llm_b(product=f'{context} 운동화')
     return 'CONTEXT_SELECT:' + '/'.join(SHOES_CONTEXTS)

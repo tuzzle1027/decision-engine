@@ -7,7 +7,7 @@ BOOK_GENRES = ['소설', '자기계발', '경제경영', '에세이', '과학', 
 BOOK_BOARDS = {
     '소설': [
         ('국내해외', ['국내', '해외번역']),
-        ('분위기', ['가벼운', '무거운', '중간']),
+        ('장르', ['로맨스', '추리/미스터리', 'SF/판타지', '역사소설', '공포/스릴러', '상관없음']),
         ('두께', ['단편', '중편', '장편']),
         ('가격', ['1만원이하', '1~2만원', '2만원이상']),
         ('직접입력', []),
@@ -24,6 +24,7 @@ BOOK_BOARDS = {
         ('가격', ['1만원이하', '1~2만원', '2만원이상']),
         ('직접입력', []),
     ],
+
     '어린이_단행본': [
         ('연령', ['0~3세', '4~7세', '8~13세']),
         ('장르', ['그림책', '동화', '학습', '과학']),
@@ -55,6 +56,9 @@ def render_board(items):
 
 
 def get_board(context: str = None, choice: str = None) -> str:
+    # 아동/유아/아기 → 어린이로 통합
+    if context in ['아동', '유아', '아기', '키즈']:
+        context = '어린이'
     # 어린이 2단계
     if context == '어린이':
         return 'CONTEXT_SELECT:' + '/'.join(CHILDREN_FORMS)
@@ -66,4 +70,8 @@ def get_board(context: str = None, choice: str = None) -> str:
     # 일반 장르
     if context and context in BOOK_BOARDS:
         return render_board(BOOK_BOARDS[context])
+    # 없는 장르 → LLM 폴백
+    if context and context in BOOK_GENRES:
+        from .board_llm import get_board as llm_b
+        return llm_b(product=f'{context} 책')
     return 'CONTEXT_SELECT:' + '/'.join(BOOK_GENRES)

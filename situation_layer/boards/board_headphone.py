@@ -47,4 +47,8 @@ def get_board(context: str = None, choice: str = None) -> str:
         return render_board(HEADPHONE_BOARDS['인이어'])
     if context == '헤드셋(게이밍)':
         return render_board(HEADPHONE_BOARDS['헤드셋'])
+    # 없는 context → LLM 폴백
+    if context and context not in HEADPHONE_CONTEXTS:
+        from .board_llm import get_board as llm_b
+        return llm_b(product=f'{context} 헤드폰')
     return 'CONTEXT_SELECT:' + '/'.join(HEADPHONE_CONTEXTS)

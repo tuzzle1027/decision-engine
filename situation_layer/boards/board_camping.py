@@ -51,4 +51,8 @@ def get_board(context: str = None, choice: str = None) -> str:
         return 'CONTEXT_SELECT:' + '/'.join(CAMPING_ITEMS)
     if context and context in CAMPING_BOARDS:
         return render_board(CAMPING_BOARDS[context])
+    # 없는 context → LLM 폴백
+    if context and context not in CAMPING_TYPES and context not in CAMPING_BOARDS:
+        from .board_llm import get_board as llm_b
+        return llm_b(product=f'캠핑 {context}')
     return 'CONTEXT_SELECT:' + '/'.join(CAMPING_TYPES)
