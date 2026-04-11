@@ -60,8 +60,20 @@ def estimate_I_hat(R_score,Phi,S_type='S1'):
     return {'I_hat':round(I,2),'theta':1.0,'activated':I>1.0}
 
 # ── 반의도 ──
-NEG_SIGNALS=['별로','마음에 안','아니에요','싫어요','안 좋아','비싸','멀어','불편','실망','후회','괜히','not good','dont like','too expensive','bad','dislike']
-B_ANTI={'B1':r'(고민|확신|모르겠|애매|불안|괜찮을까|맞는지|unsure|not sure|maybe)','B2':r'(더 찾아|또 없나|다른 거|조금 더|비슷한|another|more|keep looking)','B3':r'(나중에|생각해볼|천천히|급하지|보류|later|think about|no rush)'}
+NEG_SIGNALS=[
+    '별로','마음에 안','아니에요','싫어요','안 좋아','비싸','멀어','불편','실망','후회','괜히',
+    # 구매 망설임 패턴 추가
+    '살까','말까','살까요','말까요','살지','말지','사야할까','사도될까',
+    '괜찮을까요','어떨까요','고민이야','고민이에요','고민되','망설','모르겠어','확신이 없',
+    '사도 될까','살까 말까','너무 비싼','후회할까','실패할까','깨질까','고장날까',
+    'not good','dont like','too expensive','bad','dislike',
+    'should i buy','worth it','not sure if'
+]
+B_ANTI={
+    'B1':r'(고민|확신|모르겠|애매|불안|괜찮을까|맞는지|살까|말까|어떨까|망설|unsure|not sure|maybe|should i)',
+    'B2':r'(더 찾아|또 없나|다른 거|조금 더|비슷한|another|more|keep looking)',
+    'B3':r'(나중에|생각해볼|천천히|급하지|보류|later|think about|no rush)'
+}
 
 def is_scan_loop(text,condition_added=False):
     scan=['다른 거','또 알려줘','더 없나','다른 데','another','more options']
@@ -94,10 +106,24 @@ def get_anti_intervention(As):
     elif As>=0.45: return {'level':'MEDIUM','action':'축탐색질문','message':'시설/가격/거리 중 어떤 게 제일 중요하세요?'}
     return {'level':'LOW','action':None,'message':None}
 
+# 구매 망설임 패턴 (스캔루프보다 우선)
+HESITATION_PATTERNS = [
+    '살까', '말까', '살까요', '말까요', '살지', '말지',
+    '사야할까', '사도될까', '사도 될까', '살까 말까',
+    '괜찮을까요', '어떨까요', '고민이야', '고민이에요', '고민되',
+    '망설', '후회할까', '실패할까', '깨질까', '고장날까',
+    'should i buy', 'worth buying', 'not sure if'
+]
+
 def anti_intent_engine(text,I_hat=0,rej=0,turns=0,cond=False,hi=False):
-    if is_scan_loop(text,cond):
+    # 망설임 패턴 있으면 스캔루프 체크 건너뜀
+    has_hesitation = any(p in text for p in HESITATION_PATTERNS)
+    if not has_hesitation and is_scan_loop(text,cond):
         return {'type':'SCAN_LOOP','As':0.0,'intervention':{'level':'SCAN','action':'기준형성_질문','message':'분위기/가성비/위치 중 어떤 게 중요하세요?'},'stability':None}
+    # 망설임 패턴이면 As 최솟값 0.5 보장
     As=calculate_As(text,rej,turns,cond,hi)
+    if has_hesitation and As < 0.5:
+        As = 0.5
     return {'type':'ANTI_INTENT','As':As,'N':detect_N_anti(text),'R':detect_R_anti(rej),'Dl':detect_Dl(turns,cond),'intervention':get_anti_intervention(As),'stability':check_stability(I_hat,As)}
 
 # ── 갈등 6축 ──

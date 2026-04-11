@@ -220,7 +220,7 @@ function renderBoard(fullText) {
 }
 
 // ── 확인 버튼 ──
-function isConfirm(text) { return text.includes('CONFIRM_BUTTONS'); }
+function isConfirm(text) { return text.includes('CONFIRM_BUTTONS') && !text.includes('ANTI_CONFIRM_BUTTONS'); }
 
 function renderConfirm(text) {
   const summaryText = text.replace('CONFIRM_BUTTONS', '').trim();
@@ -347,6 +347,122 @@ function renderProducts(products) {
 }
 
 // ── AI 메시지 ──
+function renderAntiConfirm(text) {
+  // ANTI_CONFIRM_BUTTONS 앞은 AI 답변, 뒤는 상황판
+  const parts = text.split('ANTI_CONFIRM_BUTTONS');
+  const aiRaw = parts[0].trim();
+  const boardText = parts[1] ? parts[1].trim() : '';
+
+  // ITEM_SELECT 파싱
+  let itemSelectData = null;
+  let aiText = aiRaw;
+  if (aiRaw.includes('ITEM_SELECT:')) {
+    const itemParts = aiRaw.split('\n\nITEM_SELECT:');
+    aiText = itemParts[0].trim();
+    if (itemParts[1]) {
+      const [groupName, itemsStr] = itemParts[1].split(':');
+      itemSelectData = { groupName, items: itemsStr ? itemsStr.split(',') : [] };
+    }
+  }
+
+  // AI 답변 버블
+  if (aiText) {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg-wrap';
+    const mi = document.createElement('div');
+    mi.className = 'msg-inner';
+    const av = document.createElement('div');
+    av.className = 'av av-ai'; av.textContent = '🛍️';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble bubble-ai';
+
+    // 📌SOURCE:: 파싱
+    if (aiText.includes('📌SOURCE::')) {
+      const sp = aiText.split('\n\n📌SOURCE::');
+      const mainText = sp[0].trim();
+      const sourceStr = sp[1] || '';
+      bubble.textContent = mainText;
+      const sourceDiv = document.createElement('div');
+      sourceDiv.style.cssText = 'margin-top:6px; font-size:11px; opacity:0.65;';
+      sourceDiv.textContent = '📌 출처: ';
+      sourceStr.split('|').forEach(src => {
+        const [name, url] = src.split('::');
+        if (!name || !url) return;
+        const a = document.createElement('a');
+        a.href = url; a.target = '_blank'; a.textContent = name;
+        a.style.cssText = 'color:inherit; text-decoration:underline; margin-right:8px;';
+        sourceDiv.appendChild(a);
+      });
+      bubble.appendChild(sourceDiv);
+    } else {
+      bubble.textContent = aiText;
+    }
+
+    // ITEM_SELECT 버튼 (상황판에 추가 제안)
+    if (itemSelectData && itemSelectData.items.length >= 2) {
+      const itemDiv = document.createElement('div');
+      itemDiv.style.cssText = 'margin-top:10px; font-size:12px;';
+      const label = document.createElement('div');
+      label.style.cssText = 'opacity:0.7; margin-bottom:6px;';
+      label.textContent = '상황판에 추가할까요?';
+      itemDiv.appendChild(label);
+      const itemBtns = document.createElement('div');
+      itemBtns.style.cssText = 'display:flex; flex-wrap:wrap; gap:6px;';
+      itemSelectData.items.forEach(item => {
+        const btn = document.createElement('button');
+        btn.style.cssText = 'padding:4px 10px; border-radius:20px; border:1px solid #ccc; background:white; font-size:12px; cursor:pointer;';
+        btn.textContent = `+ ${item}`;
+        btn.onclick = () => {
+          // ADD_ITEM:그룹명:선택값:전체옵션 (채팅창에 안보이게 silent)
+          sendSilent(`ADD_ITEM:${itemSelectData.groupName}:${item}:${itemSelectData.items.join(',')}`);
+          btn.style.background = '#e8f4e8';
+          btn.textContent = `✓ ${item}`;
+        };
+        itemBtns.appendChild(btn);
+      });
+      itemDiv.appendChild(itemBtns);
+      bubble.appendChild(itemDiv);
+    }
+
+    mi.appendChild(av); mi.appendChild(bubble);
+    wrap.appendChild(mi);
+    chat.appendChild(wrap);
+  }
+
+  // 3가지 버튼
+  const wrap2 = document.createElement('div');
+  wrap2.className = 'msg-wrap';
+  const mi2 = document.createElement('div');
+  mi2.className = 'msg-inner full';
+  const av2 = document.createElement('div');
+  av2.className = 'av av-ai'; av2.textContent = '🛍️';
+  const box = document.createElement('div');
+  box.className = 'confirm-wrap';
+  const btns = document.createElement('div');
+  btns.className = 'confirm-btns';
+
+  const yes = document.createElement('button');
+  yes.className = 'confirm-btn btn-yes';
+  yes.textContent = '네, 찾아주세요! 🔍';
+  yes.onclick = () => send('네, 찾아주세요');
+
+  const more = document.createElement('button');
+  more.className = 'confirm-btn btn-add';
+  more.textContent = '더 물어볼게요 💬';
+  more.onclick = () => send('더 물어볼게요');
+
+  const no = document.createElement('button');
+  no.className = 'confirm-btn btn-no';
+  no.textContent = '안 살래요';
+  no.onclick = () => send('안 살래요');
+
+  btns.appendChild(yes); btns.appendChild(more); btns.appendChild(no);
+  box.appendChild(btns);
+  mi2.appendChild(av2); mi2.appendChild(box);
+  wrap2.appendChild(mi2);
+  chat.appendChild(wrap2);
+}
+
 function renderMultiSelect(text) {
   // MULTI_SELECT:소파/책상 렌더링
   const lines = text.split('\n');
@@ -452,7 +568,7 @@ function renderContextSelect(text) {
     const btn = document.createElement('div');
     btn.className = 'opt-btn';
     btn.textContent = opt;
-    btn.onclick = () => send(opt);
+    btn.onclick = () => sendSilent(opt);
     opts.appendChild(btn);
   });
   board.appendChild(opts);
@@ -461,9 +577,233 @@ function renderContextSelect(text) {
   chat.appendChild(wrap);
 }
 
+// ── VS 질문 렌더링 ──
+function renderVsQuestion(text) {
+  const lines = text.split('\n').filter(l => l.trim());
+  const header = lines[0]; // VS_QUESTION:q_id
+  const qId = header.replace('VS_QUESTION:', '').trim();
+
+  // 질문과 옵션 파싱
+  let questionLines = [];
+  const options = [];
+
+  lines.slice(1).forEach(line => {
+    // 이모지로 시작하는 줄은 옵션
+    if (/^[\u{1F000}-\u{1FFFF}✅💚💛🧡❤️🚫👨👫🧑🐶🐱🍕🎮😴]/u.test(line.trim())) {
+      options.push(line.trim());
+    } else if (line.trim()) {
+      questionLines.push(line.trim());
+    }
+  });
+
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap';
+  const mi = document.createElement('div');
+  mi.className = 'msg-inner';
+  const av = document.createElement('div');
+  av.className = 'av av-ai'; av.textContent = '🛍️';
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble bubble-ai';
+
+  // 질문 텍스트
+  const qDiv = document.createElement('div');
+  qDiv.style.cssText = 'margin-bottom:12px; line-height:1.6; white-space:pre-line;';
+  qDiv.textContent = questionLines.join('\n');
+  bubble.appendChild(qDiv);
+
+  // 옵션 버튼들
+  const btnWrap = document.createElement('div');
+  btnWrap.style.cssText = 'display:flex; flex-direction:column; gap:8px;';
+
+  options.forEach((opt, idx) => {
+    const btn = document.createElement('button');
+    btn.style.cssText = `
+      background: var(--bg-card, #f5f5f5);
+      border: 1.5px solid var(--border, #ddd);
+      border-radius: 10px;
+      padding: 10px 14px;
+      text-align: left;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+      width: 100%;
+    `;
+    btn.textContent = opt;
+    btn.onmouseover = () => btn.style.background = '#e8f0fe';
+    btn.onmouseout = () => btn.style.background = 'var(--bg-card, #f5f5f5)';
+    btn.onclick = () => {
+      btnWrap.querySelectorAll('button').forEach(b => {
+        b.style.opacity = '0.5';
+        b.disabled = true;
+      });
+      btn.style.opacity = '1';
+      btn.style.borderColor = '#4285f4';
+      btn.style.background = '#e8f0fe';
+      sendSilent(`VS_CHOICE:${qId}:${idx}`);
+    };
+    btnWrap.appendChild(btn);
+  });
+
+  bubble.appendChild(btnWrap);
+  mi.appendChild(av); mi.appendChild(bubble);
+  wrap.appendChild(mi);
+  chat.appendChild(wrap);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+// ── VS 결과 렌더링 ──
+function renderVsResult(text) {
+  const jsonStr = text.replace('VS_RESULT:', '').trim();
+  let result;
+  try { result = JSON.parse(jsonStr); } catch(e) {
+    console.error('VS_RESULT 파싱 오류:', e);
+    return;
+  }
+
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap';
+  const mi = document.createElement('div');
+  mi.className = 'msg-inner';
+  const av = document.createElement('div');
+  av.className = 'av av-ai'; av.textContent = '🛍️';
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble bubble-ai';
+
+  // 추천 제목
+  const winner = result.winner === 'fabric' ? '🛋️ 패브릭 소파 추천!' : '🛋️ 가죽 소파 추천!';
+  const titleDiv = document.createElement('div');
+  titleDiv.style.cssText = 'font-size:16px; font-weight:700; margin-bottom:10px;';
+  titleDiv.textContent = winner;
+  bubble.appendChild(titleDiv);
+
+  // 이유 목록
+  if (result.reasons && result.reasons.length > 0) {
+    const reasonDiv = document.createElement('div');
+    reasonDiv.style.cssText = 'font-size:13px; line-height:1.8; margin-bottom:14px; opacity:0.85; white-space:pre-line;';
+    reasonDiv.textContent = result.reasons.join('\n');
+    bubble.appendChild(reasonDiv);
+  }
+
+  // 두 버튼
+  const btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex; gap:10px; margin-top:8px;';
+
+  const btn1 = document.createElement('button');
+  btn1.style.cssText = `
+    flex:1; padding:12px;
+    background:#4285f4; color:white;
+    border:none; border-radius:12px;
+    font-size:14px; font-weight:600; cursor:pointer;
+  `;
+  btn1.textContent = result.winner === 'fabric' ? '✅ 패브릭 소파 찾기' : '✅ 가죽 소파 찾기';
+  btn1.onclick = () => {
+    const checked = result.winner === 'fabric' ? result.fabric_checked : result.leather_checked;
+    sendSilent(`VS_SELECT:${JSON.stringify(checked)}`);
+  };
+
+  const btn2 = document.createElement('button');
+  btn2.style.cssText = `
+    flex:1; padding:12px;
+    background:#f5f5f5; border:1.5px solid #ddd;
+    border-radius:12px; font-size:14px; cursor:pointer;
+  `;
+  btn2.textContent = result.winner === 'fabric' ? '💛 가죽 소파도 볼게요' : '💛 패브릭 소파도 볼게요';
+  btn2.onclick = () => {
+    const checked = result.winner === 'fabric' ? result.leather_checked : result.fabric_checked;
+    sendSilent(`VS_SELECT:${JSON.stringify(checked)}`);
+  };
+
+  btnRow.appendChild(btn1);
+  btnRow.appendChild(btn2);
+  bubble.appendChild(btnRow);
+
+  mi.appendChild(av); mi.appendChild(bubble);
+  wrap.appendChild(mi);
+  chat.appendChild(wrap);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+// ── 인스타그램 이미지 결과 렌더링 ──
+function renderImageResults(text) {
+  const jsonStr = text.replace('IMAGE_RESULTS:', '').split('\n')[0].trim();
+  let images = [];
+  try { images = JSON.parse(jsonStr); } catch(e) {
+    console.error('IMAGE_RESULTS 파싱 오류:', e);
+    return;
+  }
+
+  if (!images.length) return;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap';
+  const mi = document.createElement('div');
+  mi.className = 'msg-inner';
+  const av = document.createElement('div');
+  av.className = 'av av-ai'; av.textContent = '🛍️';
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble bubble-ai';
+  bubble.style.cssText = 'padding:10px; max-width:340px;';
+
+  const title = document.createElement('div');
+  title.style.cssText = 'font-size:13px; color:#888; margin-bottom:10px;';
+  title.textContent = '📸 인스타그램 실제 이미지';
+  bubble.appendChild(title);
+
+  const grid = document.createElement('div');
+  grid.style.cssText = 'display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px;';
+
+  images.forEach(img => {
+    const imgWrap = document.createElement('div');
+    imgWrap.style.cssText = 'border-radius:8px; overflow:hidden; aspect-ratio:1; cursor:pointer;';
+
+    const imgEl = document.createElement('img');
+    imgEl.src = img.url;
+    imgEl.style.cssText = 'width:100%; height:100%; object-fit:cover;';
+    imgEl.onerror = () => { imgWrap.style.display = 'none'; };
+
+    // 클릭하면 크게 보기
+    imgWrap.onclick = () => {
+      const overlay = document.createElement('div');
+      overlay.style.cssText = `
+        position:fixed; top:0; left:0; right:0; bottom:0;
+        background:rgba(0,0,0,0.85); z-index:9999;
+        display:flex; align-items:center; justify-content:center;
+        padding:20px;
+      `;
+      overlay.onclick = () => overlay.remove();
+
+      const bigImg = document.createElement('img');
+      bigImg.src = img.url;
+      bigImg.style.cssText = 'max-width:100%; max-height:80vh; border-radius:12px;';
+
+      overlay.appendChild(bigImg);
+      document.body.appendChild(overlay);
+    };
+
+    imgWrap.appendChild(imgEl);
+    grid.appendChild(imgWrap);
+  });
+
+  bubble.appendChild(grid);
+  mi.appendChild(av); mi.appendChild(bubble);
+  wrap.appendChild(mi);
+  chat.appendChild(wrap);
+  chat.scrollTop = chat.scrollHeight;
+}
+
 function addAiMsg(text) {
-  if (isConfirm(text)) {
+  if (text.startsWith('BOARD_UPDATE')) {
+    return;
+  } else if (text.startsWith('IMAGE_RESULTS:')) {
+    renderImageResults(text);
+  } else if (text.startsWith('VS_QUESTION:')) {
+    renderVsQuestion(text);
+  } else if (text.startsWith('VS_RESULT:')) {
+    renderVsResult(text);
+  } else if (isConfirm(text)) {
     chat.appendChild(renderConfirm(text));
+  } else if (text.includes('ANTI_CONFIRM_BUTTONS')) {
+    renderAntiConfirm(text);
   } else if (text.includes('MULTI_SELECT:')) {
     renderMultiSelect(text);
   } else if (text.includes('CONTEXT_SELECT:')) {
@@ -483,7 +823,34 @@ function addAiMsg(text) {
       av.className = 'av av-ai'; av.textContent = '🛍️';
       const bubble = document.createElement('div');
       bubble.className = 'bubble bubble-ai';
-      bubble.textContent = text;
+
+      // 📌SOURCE:: 파싱 → 출처 링크 렌더링
+      if (text.includes('📌SOURCE::')) {
+        const parts = text.split('\n\n📌SOURCE::');
+        const mainText = parts[0].trim();
+        const sourceStr = parts[1] || '';
+        bubble.textContent = mainText;
+
+        // 출처 링크 컨테이너
+        const sourceDiv = document.createElement('div');
+        sourceDiv.style.cssText = 'margin-top:6px; font-size:11px; opacity:0.65;';
+        sourceDiv.textContent = '📌 출처: ';
+
+        const sources = sourceStr.split('|');
+        sources.forEach((src, i) => {
+          const [name, url] = src.split('::');
+          if (!name || !url) return;
+          const a = document.createElement('a');
+          a.href = url;
+          a.target = '_blank';
+          a.textContent = name;
+          a.style.cssText = 'color:inherit; text-decoration:underline; margin-right:8px;';
+          sourceDiv.appendChild(a);
+        });
+        bubble.appendChild(sourceDiv);
+      } else {
+        bubble.textContent = text;
+      }
       mi.appendChild(av); mi.appendChild(bubble);
       wrap.appendChild(mi);
       chat.appendChild(wrap);
@@ -599,4 +966,41 @@ async function send(overrideText) {
   }
   sendBtn.disabled = false;
   input.focus();
+}
+
+// 채팅창에 안 보이게 조용히 전송 (ADD_ITEM 등 내부 명령)
+async function sendSilent(msg) {
+  addTyping();
+  try {
+    const res = await fetch('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, session: session })
+    });
+    const data = await res.json();
+    document.getElementById('typing')?.remove();
+    session = data.session;
+    const resp = data.response || '';
+    if (resp.startsWith('BOARD_UPDATE')) {
+      const boardText = resp.replace('BOARD_UPDATE', '').trim();
+      // 마지막 .board를 새 내용으로 교체
+      const allBoards = document.querySelectorAll('.board');
+      if (allBoards.length > 0) {
+        const lastBoard = allBoards[allBoards.length - 1];
+        // 임시 컨테이너에 렌더링
+        const tmp = document.createElement('div');
+        const origChat = chat;
+        chat = tmp;
+        renderBoard(boardText);
+        chat = origChat;
+        const newBoard = tmp.querySelector('.board');
+        if (newBoard) lastBoard.replaceWith(newBoard);
+      }
+    } else {
+      addAiMsg(resp);
+    }
+  } catch(e) {
+    document.getElementById('typing')?.remove();
+    addAiMsg('연결 오류가 발생했어요. 다시 시도해주세요.');
+  }
 }
