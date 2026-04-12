@@ -242,41 +242,11 @@ function renderConfirm(text) {
   yes.className = 'confirm-btn btn-yes';
   yes.textContent = '네, 찾아주세요! 🔍';
   yes.onclick = () => send('네');
-  const add = document.createElement('button');
-  add.className = 'confirm-btn btn-add';
-  add.textContent = '추가할게요 ✏️';
-  add.onclick = () => {
-    // 입력창이 이미 있으면 중복 생성 방지
-    if (box.querySelector('.add-input-row')) return;
-    const addRow = document.createElement('div');
-    addRow.className = 'add-input-row';
-    addRow.style.cssText = 'display:flex; gap:8px; margin-top:12px;';
-    const addInput = document.createElement('input');
-    addInput.type = 'text';
-    addInput.placeholder = '추가 조건을 입력하세요...';
-    addInput.style.cssText = 'flex:1; padding:8px 12px; border:1px solid #ccc; border-radius:20px; font-size:14px;';
-    const addBtn = document.createElement('button');
-    addBtn.textContent = '추가';
-    addBtn.className = 'confirm-btn btn-yes';
-    addBtn.onclick = () => {
-      const val = addInput.value.trim();
-      if (!val) return;
-      send('추가 ' + val);
-    };
-    addInput.addEventListener('keydown', e => {
-      if (e.key === 'Enter') addBtn.click();
-    });
-    addRow.appendChild(addInput);
-    addRow.appendChild(addBtn);
-    // btns 다음에 삽입 (버튼들 아래에 입력창 위치)
-    btns.insertAdjacentElement('afterend', addRow);
-    addInput.focus();
-  };
-  const no = document.createElement('button');
-  no.className = 'confirm-btn btn-no';
-  no.textContent = '다시 선택할게요';
-  no.onclick = () => send('아니요');
-  btns.appendChild(yes); btns.appendChild(add); btns.appendChild(no);
+  const img = document.createElement('button');
+  img.className = 'confirm-btn btn-add';
+  img.textContent = '📸 이미지로 스타일 골라볼게요';
+  img.onclick = () => send('이미지로 스타일 골라볼게요');
+  btns.appendChild(yes); btns.appendChild(img);
   box.appendChild(btns);
   mi.appendChild(av); mi.appendChild(box);
   wrap.appendChild(mi);
@@ -350,13 +320,8 @@ function renderProducts(products) {
 function renderAntiConfirm(text) {
   // ANTI_CONFIRM_BUTTONS 앞은 AI 답변, 뒤는 상황판
   const parts = text.split('ANTI_CONFIRM_BUTTONS');
-  let aiRaw = parts[0].trim();
+  const aiRaw = parts[0].trim();
   const boardText = parts[1] ? parts[1].trim() : '';
-
-  // IMAGE_RESULTS 포함된 경우 제거 (이미 renderImageResults에서 처리)
-  if (aiRaw.startsWith('IMAGE_RESULTS:') || aiRaw.startsWith('IMAGE_SEARCH:')) {
-    aiRaw = '';
-  }
 
   // ITEM_SELECT 파싱
   let itemSelectData = null;
@@ -730,7 +695,6 @@ function renderVsResult(text) {
 
 // ── 인스타그램 이미지 결과 렌더링 ──
 function renderImageResults(text) {
-  // JSON 부분만 추출 (ANTI_CONFIRM_BUTTONS 이전까지)
   const jsonStr = text.replace('IMAGE_RESULTS:', '').split('\n')[0].trim();
   let images = [];
   try { images = JSON.parse(jsonStr); } catch(e) {
@@ -752,7 +716,7 @@ function renderImageResults(text) {
 
   const title = document.createElement('div');
   title.style.cssText = 'font-size:13px; color:#888; margin-bottom:10px;';
-  title.textContent = '📸 이미지 검색 결과';
+  title.textContent = '📸 인스타그램 실제 이미지';
   bubble.appendChild(title);
 
   const grid = document.createElement('div');
@@ -767,57 +731,22 @@ function renderImageResults(text) {
     imgEl.style.cssText = 'width:100%; height:100%; object-fit:cover;';
     imgEl.onerror = () => { imgWrap.style.display = 'none'; };
 
-    // 클릭하면 적당한 크기 팝업
+    // 클릭하면 크게 보기
     imgWrap.onclick = () => {
       const overlay = document.createElement('div');
       overlay.style.cssText = `
         position:fixed; top:0; left:0; right:0; bottom:0;
-        background:rgba(0,0,0,0.7); z-index:9999;
+        background:rgba(0,0,0,0.85); z-index:9999;
         display:flex; align-items:center; justify-content:center;
-        padding:40px;
+        padding:20px;
       `;
-
-      const popup = document.createElement('div');
-      popup.style.cssText = `
-        position:relative;
-        max-width:380px; width:100%;
-        border-radius:16px; overflow:hidden;
-        background:white;
-      `;
-
-      // X 닫기 버튼
-      const closeBtn = document.createElement('button');
-      closeBtn.textContent = '✕';
-      closeBtn.style.cssText = `
-        position:absolute; top:8px; right:8px;
-        background:rgba(0,0,0,0.5); color:white;
-        border:none; border-radius:50%;
-        width:28px; height:28px;
-        font-size:14px; cursor:pointer;
-        display:flex; align-items:center; justify-content:center;
-        z-index:1;
-      `;
-      closeBtn.onclick = (e) => { e.stopPropagation(); overlay.remove(); };
+      overlay.onclick = () => overlay.remove();
 
       const bigImg = document.createElement('img');
       bigImg.src = img.url;
-      bigImg.style.cssText = 'width:100%; display:block;';
+      bigImg.style.cssText = 'max-width:100%; max-height:80vh; border-radius:12px;';
 
-      // 캡션
-      if (img.caption) {
-        const cap = document.createElement('div');
-        cap.style.cssText = 'padding:8px 12px; font-size:12px; color:#555;';
-        cap.textContent = img.caption;
-        popup.appendChild(bigImg);
-        popup.appendChild(cap);
-      } else {
-        popup.appendChild(bigImg);
-      }
-
-      popup.appendChild(closeBtn);
-      overlay.appendChild(popup);
-      overlay.onclick = () => overlay.remove();
-      popup.onclick = (e) => e.stopPropagation();
+      overlay.appendChild(bigImg);
       document.body.appendChild(overlay);
     };
 
@@ -832,31 +761,164 @@ function renderImageResults(text) {
   chat.scrollTop = chat.scrollHeight;
 }
 
+// ── 욕망 스토리보드 렌더링 ──
+function renderDesireBoard(text) {
+  const jsonStr = text.replace('DESIRE_BOARD:', '').trim();
+  let images = [];
+  try { images = JSON.parse(jsonStr); } catch(e) {
+    console.error('DESIRE_BOARD 파싱 오류:', e);
+    return;
+  }
+  if (!images.length) return;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap';
+  const mi = document.createElement('div');
+  mi.className = 'msg-inner';
+  const av = document.createElement('div');
+  av.className = 'av av-ai'; av.textContent = '🛍️';
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble bubble-ai';
+  bubble.style.cssText = 'padding:12px; max-width:360px;';
+
+  // 타이틀
+  const title = document.createElement('div');
+  title.style.cssText = 'font-size:14px; font-weight:600; margin-bottom:4px; color:var(--color-text-primary);';
+  title.textContent = '✨ 어떤 스타일이 마음에 드세요?';
+  bubble.appendChild(title);
+
+  const sub = document.createElement('div');
+  sub.style.cssText = 'font-size:11px; color:#888; margin-bottom:10px;';
+  sub.textContent = '이미지 클릭 → 확대 | 동그라미 클릭 → 선택';
+  bubble.appendChild(sub);
+
+  // 2열 그리드
+  const grid = document.createElement('div');
+  grid.style.cssText = 'display:grid; grid-template-columns:1fr 1fr; gap:8px;';
+
+  const selectedImages = new Set();
+
+  // 선택 완료 버튼 (미리 생성)
+  const btnWrap = document.createElement('div');
+  btnWrap.style.cssText = 'display:none; gap:8px; margin-top:12px; flex-direction:column;';
+  const countMsg = document.createElement('div');
+  countMsg.style.cssText = 'font-size:12px; color:#888; text-align:center;';
+
+  function updateButtons() {
+    if (selectedImages.size > 0) {
+      btnWrap.style.display = 'flex';
+      countMsg.textContent = `${selectedImages.size}개 선택됨`;
+    } else {
+      btnWrap.style.display = 'none';
+    }
+  }
+
+  images.forEach((img, idx) => {
+    const card = document.createElement('div');
+    card.style.cssText = 'border-radius:10px; overflow:hidden; border:2px solid transparent; position:relative; transition:border-color 0.2s; background:var(--color-background-secondary);';
+
+    // 이미지 (클릭 → 확대)
+    const imgEl = document.createElement('img');
+    imgEl.src = img.url;
+    imgEl.style.cssText = 'width:100%; aspect-ratio:1; object-fit:cover; display:block; cursor:pointer;';
+    imgEl.onerror = () => { card.style.display = 'none'; };
+
+    imgEl.onclick = () => {
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.8); z-index:9999; display:flex; align-items:center; justify-content:center; padding:40px;';
+      const popup = document.createElement('div');
+      popup.style.cssText = 'position:relative; max-width:360px; width:100%; border-radius:16px; overflow:hidden; background:white;';
+      const closeBtn = document.createElement('button');
+      closeBtn.textContent = '✕';
+      closeBtn.style.cssText = 'position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.5); color:white; border:none; border-radius:50%; width:28px; height:28px; font-size:14px; cursor:pointer; z-index:1;';
+      closeBtn.onclick = (e) => { e.stopPropagation(); overlay.remove(); };
+      const bigImg = document.createElement('img');
+      bigImg.src = img.url;
+      bigImg.style.cssText = 'width:100%; display:block;';
+      if (img.style) {
+        const cap = document.createElement('div');
+        cap.style.cssText = 'padding:8px 12px; font-size:12px; color:#555;';
+        cap.textContent = img.style;
+        popup.appendChild(bigImg);
+        popup.appendChild(cap);
+      } else {
+        popup.appendChild(bigImg);
+      }
+      popup.appendChild(closeBtn);
+      overlay.appendChild(popup);
+      overlay.onclick = () => overlay.remove();
+      popup.onclick = (e) => e.stopPropagation();
+      document.body.appendChild(overlay);
+    };
+
+    // 하단 라벨 + 동그라미 체크
+    const labelBar = document.createElement('div');
+    labelBar.style.cssText = 'background:rgba(0,0,0,0.55); color:white; font-size:11px; padding:6px 8px; display:flex; justify-content:space-between; align-items:center;';
+
+    const labelText = document.createElement('span');
+    labelText.textContent = img.style || `스타일${idx+1}`;
+
+    const checkBtn = document.createElement('div');
+    checkBtn.style.cssText = 'width:22px; height:22px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:12px; cursor:pointer; flex-shrink:0; transition:all 0.2s;';
+
+    checkBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (selectedImages.has(idx)) {
+        selectedImages.delete(idx);
+        card.style.borderColor = 'transparent';
+        checkBtn.style.background = 'transparent';
+        checkBtn.style.borderColor = 'white';
+        checkBtn.textContent = '';
+      } else {
+        selectedImages.add(idx);
+        card.style.borderColor = '#ff6b35';
+        checkBtn.style.background = '#ff6b35';
+        checkBtn.style.borderColor = '#ff6b35';
+        checkBtn.textContent = '✓';
+      }
+      updateButtons();
+    };
+
+    labelBar.appendChild(labelText);
+    labelBar.appendChild(checkBtn);
+    card.appendChild(imgEl);
+    card.appendChild(labelBar);
+    grid.appendChild(card);
+  });
+
+  bubble.appendChild(grid);
+  bubble.appendChild(countMsg);
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.textContent = '이 스타일로 찾아주세요';
+  confirmBtn.style.cssText = 'background:#ff6b35; color:white; border:none; border-radius:20px; padding:11px 16px; font-size:14px; font-weight:600; cursor:pointer; width:100%;';
+  confirmBtn.onclick = () => {
+    const selected = Array.from(selectedImages).map(i => images[i]);
+    sendPrompt(`DESIRE_SELECT:${JSON.stringify(selected)}`);
+  };
+
+  const retryBtn = document.createElement('button');
+  retryBtn.textContent = '다른 이미지 찾기';
+  retryBtn.style.cssText = 'background:transparent; color:#ff6b35; border:2px solid #ff6b35; border-radius:20px; padding:9px 16px; font-size:14px; cursor:pointer; width:100%;';
+  retryBtn.onclick = () => { sendPrompt('다른 이미지 찾아줘'); };
+
+  btnWrap.appendChild(confirmBtn);
+  btnWrap.appendChild(retryBtn);
+  bubble.appendChild(btnWrap);
+
+  mi.appendChild(av); mi.appendChild(bubble);
+  wrap.appendChild(mi);
+  chat.appendChild(wrap);
+  chat.scrollTop = chat.scrollHeight;
+}
+
 function addAiMsg(text) {
   if (text.startsWith('BOARD_UPDATE')) {
     return;
+  } else if (text.startsWith('DESIRE_BOARD:')) {
+    renderDesireBoard(text);
   } else if (text.startsWith('IMAGE_RESULTS:')) {
     renderImageResults(text);
-    // 이미지 후 버튼 없음
-  } else if (text.startsWith('IMAGE_SEARCH:')) {
-    // 이미지 없을 때 로딩 메시지
-    const query = text.replace('IMAGE_SEARCH:', '').split('\n')[0].trim();
-    const wrap = document.createElement('div');
-    wrap.className = 'msg-wrap';
-    const mi = document.createElement('div');
-    mi.className = 'msg-inner';
-    const av = document.createElement('div');
-    av.className = 'av av-ai'; av.textContent = '🛍️';
-    const bubble = document.createElement('div');
-    bubble.className = 'bubble bubble-ai';
-    bubble.textContent = `🔍 "${query}" 이미지 검색 중...`;
-    mi.appendChild(av); mi.appendChild(bubble);
-    wrap.appendChild(mi);
-    chat.appendChild(wrap);
-    chat.scrollTop = chat.scrollHeight;
-    if (text.includes('ANTI_CONFIRM_BUTTONS')) {
-      renderAntiConfirm(text);
-    }
   } else if (text.startsWith('VS_QUESTION:')) {
     renderVsQuestion(text);
   } else if (text.startsWith('VS_RESULT:')) {

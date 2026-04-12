@@ -34,7 +34,7 @@ ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 NAVER_CLIENT_ID   = os.environ.get('NAVER_CLIENT_ID', '')
 NAVER_CLIENT_SECRET = os.environ.get('NAVER_CLIENT_SECRET', '')
 GOOGLE_API_KEY    = os.environ.get('GOOGLE_API_KEY', '')
-GOOGLE_CSE_ID     = os.environ.get('GOOGLE_CSE_ID', '')
+GOOGLE_CSE_ID     = os.environ.get('GOOGLE_CSE_ID', '954e57b3b58044a16')
 
 
 def search_google_images(keyword: str, limit: int = 3) -> list:
@@ -75,7 +75,55 @@ def search_google_images(keyword: str, limit: int = 3) -> list:
         return search_naver_images(keyword, limit)
 
 
-def search_naver_images(keyword: str, limit: int = 3) -> list:
+def search_desire_board_images(product: str, limit_per_style: int = 1) -> list:
+    """
+    욕망 스토리보드 이미지 검색
+    LLM으로 6가지 스타일 검색어 생성
+    → 네이버 이미지 각 1장씩 → 총 6장
+    returns: [{'url': '...', 'caption': '...', 'style': '...'}, ...]
+    """
+    try:
+        # LLM으로 6가지 스타일 검색어 생성
+        style_prompt = f""""{product}"를 6가지 완전히 다른 스타일로 검색어를 만들어주세요.
+
+스타일 기준:
+1. 최신 트렌드 (2024-2025)
+2. 유니크/개성있는 디자인
+3. 클래식/전통적인 디자인
+4. 미니멀/심플
+5. 북유럽/스칸디나비아
+6. 럭셔리/프리미엄
+
+규칙:
+- 각 검색어는 네이버 이미지 검색용
+- 한국어로
+- 한 줄에 하나씩
+- 번호 없이 검색어만
+- 예: 패브릭 소파 북유럽 트렌드
+
+6줄만 출력."""
+
+        style_queries = call_llm(style_prompt, max_tokens=200).strip().split('\n')
+        style_queries = [q.strip() for q in style_queries if q.strip()][:6]
+
+        STYLE_NAMES = ['트렌드', '유니크', '클래식', '미니멀', '북유럽', '럭셔리']
+
+        print(f'[욕망보드] 검색어: {style_queries}')
+
+        images = []
+        for i, query in enumerate(style_queries):
+            results = search_naver_images(query, limit=1)
+            if results:
+                results[0]['style'] = STYLE_NAMES[i] if i < len(STYLE_NAMES) else f'스타일{i+1}'
+                results[0]['query'] = query
+                images.append(results[0])
+
+        print(f'[욕망보드] 총 {len(images)}장 수집')
+        return images
+
+    except Exception as e:
+        print(f'[욕망보드 오류] {e}')
+        return []
     """
     네이버 이미지 검색 API
     무료, 빠름, 이미 키 있음
@@ -1386,7 +1434,7 @@ def decision_engine(user_input, session=None):
             img_query = call_llm(img_prompt, max_tokens=30).strip()
 
             # Apify 인스타그램 이미지 검색
-            images = search_google_images(img_query, limit=3)
+            images = search_naver_images(img_query, limit=3)
 
             if images:
                 import json
@@ -1690,6 +1738,21 @@ def decision_engine(user_input, session=None):
 
     # ── 2단계: 확인 버튼 응답 처리 ──
     if stage == 'confirm':
+        # 이미지로 스타일 골라볼게요 → 욕망 스토리보드
+        if '이미지로 스타일' in raw_text or '이미지로' in raw_text:
+            raw_product = session.get('raw_product', '')
+            material = session.get('vs_material', '')
+            sofa_keyword = f'{material} 소파' if material else '소파'
+            desire_images = search_desire_board_images(sofa_keyword)
+            if desire_images:
+                import json as _json
+                images_json = _json.dumps(desire_images, ensure_ascii=False)
+                session['stage'] = 'desire_board'
+                session['desire_images'] = desire_images
+                return f'DESIRE_BOARD:{images_json}'
+            else:
+                return "이미지를 불러오는 중 문제가 생겼어요. 다시 시도해주세요 😊"
+
         # "네" → 바로 역추적
         if any(w in raw_text for w in ['네', '예', '맞아', '맞아요', '좋아', '응', 'yes', 'ok']):
             session['stage'] = 'selected'
@@ -1743,9 +1806,30 @@ def decision_engine(user_input, session=None):
                 msg = f"마지막으로 {next_product}도 찾아드릴게요! 😊"
             return f"{msg}\n\nMULTI_SELECT:{next_product}"
 
-    # ── 1.5단계: 상황판 선택 완료 → LLM 요약 확인 ──
+    # ── 1.5단계: 상황판 선택 완료 → 욕망 스토리보드 (소파만) ──
     if stage == 'board_shown':
-        session['stage']      = 'confirm'
+
+        # 소파인지 확인 → 욕망 스토리보드 발동
+        raw_product = session.get('raw_product', '')
+        is_sofa = any(kw in raw_product for kw in ['소파', 'sofa'])
+
+        if is_sofa:
+            # 소재만 추출 (인원수 무시)
+            material = session.get('vs_material', '')
+            sofa_keyword = f'{material} 소파' if material else '소파'
+
+            # 욕망 스토리보드 이미지 검색
+            desire_images = search_desire_board_images(sofa_keyword)
+
+            if desire_images:
+                import json as _json
+                images_json = _json.dumps(desire_images, ensure_ascii=False)
+                session['stage'] = 'desire_board'
+                session['desire_images'] = desire_images
+                return f'DESIRE_BOARD:{images_json}'
+
+        # 소파 아니면 기존 흐름
+        session['stage'] = 'confirm'
         session['selections'] = raw_text
 
         # 1단계 + 현재 제약 합산
@@ -1776,7 +1860,7 @@ def decision_engine(user_input, session=None):
 이미지 검색할 핵심 키워드만 추출하세요. (예: 패브릭소파 인테리어)
 인스타그램 해시태그용으로 붙여쓰기. 키워드만 한 줄 출력."""
         img_query = call_llm(img_prompt, max_tokens=30).strip()
-        images = search_google_images(img_query, limit=3)
+        images = search_naver_images(img_query, limit=3)
         if images:
             import json as _json
             images_json = _json.dumps(images, ensure_ascii=False)
