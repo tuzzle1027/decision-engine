@@ -31,70 +31,127 @@ VERSION = 'v15'
 OPENAI_API_KEY    = os.environ.get('OPENAI_API_KEY', '')
 APIFY_TOKEN       = os.environ.get('APIFY_TOKEN', '')
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
+NAVER_CLIENT_ID   = os.environ.get('NAVER_CLIENT_ID', '')
+NAVER_CLIENT_SECRET = os.environ.get('NAVER_CLIENT_SECRET', '')
+GOOGLE_API_KEY    = os.environ.get('GOOGLE_API_KEY', '')
+GOOGLE_CSE_ID     = os.environ.get('GOOGLE_CSE_ID', '')
 
 
-def search_instagram_images(keyword: str, limit: int = 6) -> list:
+def search_google_images(keyword: str, limit: int = 3) -> list:
     """
-    Apify로 인스타그램 이미지 검색
+    Google Custom Search API 이미지 검색
+    하루 100건 무료
     returns: [{'url': '...', 'caption': '...'}, ...]
     """
-    token = APIFY_TOKEN
-    if not token:
-        print('[Apify] APIFY_TOKEN 없음')
+    if not GOOGLE_API_KEY or not GOOGLE_CSE_ID:
+        print('[Google이미지] 키 없음 → 네이버로 폴백')
+        return search_naver_images(keyword, limit)
+    try:
+        import urllib.parse
+        query = urllib.parse.quote(keyword)
+        url = (
+            f'https://www.googleapis.com/customsearch/v1'
+            f'?key={GOOGLE_API_KEY}'
+            f'&cx={GOOGLE_CSE_ID}'
+            f'&q={query}'
+            f'&searchType=image'
+            f'&num={limit}'
+            f'&lr=lang_ko'
+        )
+        req = urllib.request.Request(url)
+        res = urllib.request.urlopen(req, timeout=10)
+        data = json.loads(res.read())
+        items = data.get('items', [])
+        images = []
+        for item in items:
+            url = item.get('link', '')
+            caption = item.get('title', '')[:40]
+            if url:
+                images.append({'url': url, 'caption': caption})
+        print(f'[Google이미지] {keyword} → {len(images)}개')
+        return images
+    except Exception as e:
+        print(f'[Google이미지 오류] {e} → 네이버로 폴백')
+        return search_naver_images(keyword, limit)
+
+
+def search_naver_images(keyword: str, limit: int = 3) -> list:
+    """
+    네이버 이미지 검색 API
+    무료, 빠름, 이미 키 있음
+    returns: [{'url': '...', 'caption': '...'}, ...]
+    """
+    if not NAVER_CLIENT_ID or not NAVER_CLIENT_SECRET:
+        print('[네이버이미지] 키 없음')
+        return []
+    try:
+        import urllib.parse
+        query = urllib.parse.quote(keyword)
+        req = urllib.request.Request(
+            f'https://openapi.naver.com/v1/search/image?query={query}&display={limit}&sort=sim',
+            headers={
+                'X-Naver-Client-Id': NAVER_CLIENT_ID,
+                'X-Naver-Client-Secret': NAVER_CLIENT_SECRET,
+            }
+        )
+        res = urllib.request.urlopen(req, timeout=5)
+        data = json.loads(res.read())
+        items = data.get('items', [])
+        images = []
+        for item in items:
+            url = item.get('link', '')
+            caption = item.get('title', '').replace('<b>', '').replace('</b>', '')[:30]
+            if url:
+                images.append({'url': url, 'caption': caption})
+        print(f'[네이버이미지] {keyword} → {len(images)}개')
+        return images
+    except Exception as e:
+        print(f'[네이버이미지 오류] {e}')
         return []
 
+
+def search_instagram_images(keyword: str, limit: int = 3) -> list:
+    """
+    Apify apidojo/instagram-scraper
+    startUrls 방식
+    """
+    if not APIFY_TOKEN:
+        print('[Apify] APIFY_TOKEN 없음')
+        return []
     try:
-        import json
-        import urllib.request
-
-        # Apify Instagram Hashtag Scraper 호출
+        from apify_client import ApifyClient
+        client = ApifyClient(APIFY_TOKEN)
         hashtag = keyword.replace(' ', '').replace('#', '')
-        body = json.dumps({
-            "hashtags": [hashtag],
+
+        # 영어로 번역 (인스타그램 해시태그용)
+        try:
+            translate_prompt = f'"{keyword}"를 인스타그램 해시태그용 영어로 번역하세요. 한 단어 또는 붙여쓰기로만 출력. 예: birchwood, fabricsofa'
+            eng_hashtag = call_llm(translate_prompt, max_tokens=15).strip().replace(' ', '').replace('#', '')
+            if eng_hashtag:
+                hashtag = eng_hashtag
+                print(f'[Apify] 번역: {keyword} → #{hashtag}')
+        except:
+            pass
+        run_input = {
+            "startUrls": [
+                {"url": f"https://www.instagram.com/explore/tags/{hashtag}/"}
+            ],
             "resultsLimit": limit,
-            "resultsType": "posts",
-        }).encode()
-
-        req = urllib.request.Request(
-            f'https://api.apify.com/v2/acts/apify~instagram-hashtag-scraper/runs?token={token}',
-            data=body,
-            headers={'Content-Type': 'application/json'},
-            method='POST'
-        )
-        res = urllib.request.urlopen(req, timeout=30)
-        run_data = json.loads(res.read())
-        run_id = run_data.get('data', {}).get('id', '')
-        dataset_id = run_data.get('data', {}).get('defaultDatasetId', '')
-
-        if not dataset_id:
-            print(f'[Apify] run_id={run_id} dataset 없음')
-            return []
-
-        # 결과 가져오기 (최대 30초 대기)
-        import time
-        for _ in range(10):
-            time.sleep(3)
-            try:
-                res2 = urllib.request.urlopen(
-                    f'https://api.apify.com/v2/datasets/{dataset_id}/items?token={token}&limit={limit}',
-                    timeout=10
-                )
-                items = json.loads(res2.read())
-                if items:
-                    images = []
-                    for item in items:
-                        url = item.get('displayUrl') or item.get('imageUrl', '')
-                        caption = item.get('caption', '')[:50] if item.get('caption') else ''
-                        if url:
-                            images.append({'url': url, 'caption': caption})
-                    print(f'[Apify] {keyword} → {len(images)}개 이미지')
-                    return images
-            except:
-                continue
-
+        }
+        run = client.actor("apidojo/instagram-scraper").call(run_input=run_input)
+        images = []
+        for item in client.dataset(run["defaultDatasetId"]).iterate_items():
+            url = item.get('displayUrl') or item.get('imageUrl') or item.get('thumbnailUrl', '')
+            caption = item.get('caption', '')[:50] if item.get('caption') else ''
+            if url:
+                images.append({'url': url, 'caption': caption})
+            if len(images) >= limit:
+                break
+        print(f'[Apify apidojo] {keyword} → {len(images)}개')
+        return images
     except Exception as e:
         print(f'[Apify 오류] {e}')
-    return []
+        return []
 
 
 # ===============================
@@ -1329,7 +1386,7 @@ def decision_engine(user_input, session=None):
             img_query = call_llm(img_prompt, max_tokens=30).strip()
 
             # Apify 인스타그램 이미지 검색
-            images = search_instagram_images(img_query, limit=3)
+            images = search_google_images(img_query, limit=3)
 
             if images:
                 import json
@@ -1711,6 +1768,23 @@ def decision_engine(user_input, session=None):
         return f"{summary}\n\nCONFIRM_BUTTONS"
 
     # ── 1단계: 처음 입력 → VS 체크 먼저 → 센서 → 반의도 체크 → 상황판 ──
+
+    # 이미지 요청 감지 (stage 무관하게 항상 체크!)
+    IMAGE_KEYWORDS = ['이미지', '사진', '보여줘', '어떻게 생겼', '어떤 모양', '사진으로', '그림으로', '비주얼']
+    if any(kw in original_text for kw in IMAGE_KEYWORDS):
+        img_prompt = f"""사용자: "{original_text}"
+이미지 검색할 핵심 키워드만 추출하세요. (예: 패브릭소파 인테리어)
+인스타그램 해시태그용으로 붙여쓰기. 키워드만 한 줄 출력."""
+        img_query = call_llm(img_prompt, max_tokens=30).strip()
+        images = search_google_images(img_query, limit=3)
+        if images:
+            import json as _json
+            images_json = _json.dumps(images, ensure_ascii=False)
+            session['stage'] = 'anti_confirm'
+            return f'IMAGE_RESULTS:{images_json}\n\nANTI_CONFIRM_BUTTONS\n\n{session.get("last_board_text", "")}'
+        else:
+            session['stage'] = 'anti_confirm'
+            return f'IMAGE_SEARCH:{img_query}\n\nANTI_CONFIRM_BUTTONS\n\n{session.get("last_board_text", "")}'
 
     product = classify_product(original_text)
 

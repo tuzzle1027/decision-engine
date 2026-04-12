@@ -350,8 +350,13 @@ function renderProducts(products) {
 function renderAntiConfirm(text) {
   // ANTI_CONFIRM_BUTTONS 앞은 AI 답변, 뒤는 상황판
   const parts = text.split('ANTI_CONFIRM_BUTTONS');
-  const aiRaw = parts[0].trim();
+  let aiRaw = parts[0].trim();
   const boardText = parts[1] ? parts[1].trim() : '';
+
+  // IMAGE_RESULTS 포함된 경우 제거 (이미 renderImageResults에서 처리)
+  if (aiRaw.startsWith('IMAGE_RESULTS:') || aiRaw.startsWith('IMAGE_SEARCH:')) {
+    aiRaw = '';
+  }
 
   // ITEM_SELECT 파싱
   let itemSelectData = null;
@@ -725,6 +730,7 @@ function renderVsResult(text) {
 
 // ── 인스타그램 이미지 결과 렌더링 ──
 function renderImageResults(text) {
+  // JSON 부분만 추출 (ANTI_CONFIRM_BUTTONS 이전까지)
   const jsonStr = text.replace('IMAGE_RESULTS:', '').split('\n')[0].trim();
   let images = [];
   try { images = JSON.parse(jsonStr); } catch(e) {
@@ -746,7 +752,7 @@ function renderImageResults(text) {
 
   const title = document.createElement('div');
   title.style.cssText = 'font-size:13px; color:#888; margin-bottom:10px;';
-  title.textContent = '📸 인스타그램 실제 이미지';
+  title.textContent = '📸 이미지 검색 결과';
   bubble.appendChild(title);
 
   const grid = document.createElement('div');
@@ -761,22 +767,57 @@ function renderImageResults(text) {
     imgEl.style.cssText = 'width:100%; height:100%; object-fit:cover;';
     imgEl.onerror = () => { imgWrap.style.display = 'none'; };
 
-    // 클릭하면 크게 보기
+    // 클릭하면 적당한 크기 팝업
     imgWrap.onclick = () => {
       const overlay = document.createElement('div');
       overlay.style.cssText = `
         position:fixed; top:0; left:0; right:0; bottom:0;
-        background:rgba(0,0,0,0.85); z-index:9999;
+        background:rgba(0,0,0,0.7); z-index:9999;
         display:flex; align-items:center; justify-content:center;
-        padding:20px;
+        padding:40px;
       `;
-      overlay.onclick = () => overlay.remove();
+
+      const popup = document.createElement('div');
+      popup.style.cssText = `
+        position:relative;
+        max-width:380px; width:100%;
+        border-radius:16px; overflow:hidden;
+        background:white;
+      `;
+
+      // X 닫기 버튼
+      const closeBtn = document.createElement('button');
+      closeBtn.textContent = '✕';
+      closeBtn.style.cssText = `
+        position:absolute; top:8px; right:8px;
+        background:rgba(0,0,0,0.5); color:white;
+        border:none; border-radius:50%;
+        width:28px; height:28px;
+        font-size:14px; cursor:pointer;
+        display:flex; align-items:center; justify-content:center;
+        z-index:1;
+      `;
+      closeBtn.onclick = (e) => { e.stopPropagation(); overlay.remove(); };
 
       const bigImg = document.createElement('img');
       bigImg.src = img.url;
-      bigImg.style.cssText = 'max-width:100%; max-height:80vh; border-radius:12px;';
+      bigImg.style.cssText = 'width:100%; display:block;';
 
-      overlay.appendChild(bigImg);
+      // 캡션
+      if (img.caption) {
+        const cap = document.createElement('div');
+        cap.style.cssText = 'padding:8px 12px; font-size:12px; color:#555;';
+        cap.textContent = img.caption;
+        popup.appendChild(bigImg);
+        popup.appendChild(cap);
+      } else {
+        popup.appendChild(bigImg);
+      }
+
+      popup.appendChild(closeBtn);
+      overlay.appendChild(popup);
+      overlay.onclick = () => overlay.remove();
+      popup.onclick = (e) => e.stopPropagation();
       document.body.appendChild(overlay);
     };
 
@@ -796,6 +837,26 @@ function addAiMsg(text) {
     return;
   } else if (text.startsWith('IMAGE_RESULTS:')) {
     renderImageResults(text);
+    // 이미지 후 버튼 없음
+  } else if (text.startsWith('IMAGE_SEARCH:')) {
+    // 이미지 없을 때 로딩 메시지
+    const query = text.replace('IMAGE_SEARCH:', '').split('\n')[0].trim();
+    const wrap = document.createElement('div');
+    wrap.className = 'msg-wrap';
+    const mi = document.createElement('div');
+    mi.className = 'msg-inner';
+    const av = document.createElement('div');
+    av.className = 'av av-ai'; av.textContent = '🛍️';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble bubble-ai';
+    bubble.textContent = `🔍 "${query}" 이미지 검색 중...`;
+    mi.appendChild(av); mi.appendChild(bubble);
+    wrap.appendChild(mi);
+    chat.appendChild(wrap);
+    chat.scrollTop = chat.scrollHeight;
+    if (text.includes('ANTI_CONFIRM_BUTTONS')) {
+      renderAntiConfirm(text);
+    }
   } else if (text.startsWith('VS_QUESTION:')) {
     renderVsQuestion(text);
   } else if (text.startsWith('VS_RESULT:')) {
