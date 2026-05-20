@@ -50,11 +50,13 @@ def fetch_titles_for_mind(product, limit=200):
             'X-Naver-Client-Id': NAVER_CLIENT_ID,
             'X-Naver-Client-Secret': NAVER_CLIENT_SECRET,
         }
-        for _start in [1, 101]:
+        _display = min(limit, 100)
+        _starts = [1] if limit <= 100 else [1, 101]
+        for _start in _starts:
             try:
                 _q = _up.quote(product)
                 _req = urllib.request.Request(
-                    f'https://openapi.naver.com/v1/search/shop?query={_q}&display=100&start={_start}&sort=sim',
+                    f'https://openapi.naver.com/v1/search/shop?query={_q}&display={_display}&start={_start}&sort=sim',
                     headers=_headers
                 )
                 _res = urllib.request.urlopen(_req, timeout=5)
@@ -97,7 +99,20 @@ def analyze_mind_keywords(titles, product=''):
                 seen.add(w)
     # 빈도순 정렬, 상위 20개
     sorted_words = sorted(word_count.items(), key=lambda x: -x[1])
-    top = sorted_words[:20]
+    
+    # ★ 비슷한 키워드 그룹핑! (편중 방지)
+    # 1. 포함 관계 제거: "휴대용유모차"는 "휴대용"에 포함 → 제거
+    filtered = []
+    for w, c in sorted_words:
+        is_subset = False
+        for fw, fc in filtered:
+            if w in fw or fw in w:
+                is_subset = True
+                break
+        if not is_subset:
+            filtered.append((w, c))
+    
+    top = filtered[:15]
     # "접이식(30개), 경량(20개)" 형식
     result = ', '.join([f'{w}({c}개)' for w, c in top if c >= 3])
     print(f'[마음빈도] {product}: {result[:100]}')
@@ -2594,7 +2609,7 @@ def build_search_query(
         f'- 색상이 있으면 포함\n'
         f'- ★ 직접입력/구매자맥락/직접요청 내용은 절대 포함 금지!\n'
         f'- ★ 검색쿼리는 상황판 선택 옵션만으로 구성!\n'
-        f'- 6단어 이내\n'
+        f'- ★★★ 3단어 이내! 핵심 조건만! (예: "유모차 양방향", "노트북 i9")\n'
         f'- 검색쿼리 1줄만 출력'
     )
     try:

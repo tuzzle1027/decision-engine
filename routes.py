@@ -1566,6 +1566,24 @@ def mind_chat():
             from naver_api import fetch_titles_for_mind, analyze_mind_keywords
             _titles = fetch_titles_for_mind(product)
             if _titles:
+                # ★ 마음 바람잡이! 편중 방지!
+                try:
+                    _div_prompt = (
+                        f"'{product}'을 네이버에서 검색하면 비슷한 종류만 나와.\n"
+                        f"다른 종류가 나오도록 검색어 2개만.\n"
+                        f"한 줄에 하나. 다른 말 금지."
+                    )
+                    _div = call_llm(_div_prompt, max_tokens=30).strip()
+                    for _dline in _div.split('\n'):
+                        _dq = _dline.strip()
+                        if _dq and len(_dq) > 2:
+                            _extra = fetch_titles_for_mind(_dq, limit=50)
+                            if _extra:
+                                _titles.extend(_extra)
+                                print(f'[마음바람잡이] "{_dq}" → +{len(_extra)}개')
+                except Exception as e:
+                    print(f'[마음바람잡이오류] {e}')
+                
                 freq_text = analyze_mind_keywords(_titles, product)
         except Exception as e:
             print(f'[마음Q1오류] {e}')

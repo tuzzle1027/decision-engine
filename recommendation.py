@@ -93,6 +93,7 @@ def make_recommendation(product_name, selections, extra='', session=None, card_q
     # raw_product에 선택 조건 합치기 (케이스2,3 해결!)
     # "소파" → "4인용 패브릭 소파"
     raw_product = (session or {}).get('raw_product', product_name)
+    _original_product = raw_product  # ★ 보강 전 원래 제품명 저장! (넓게 검색용)
 
     # ★ 직접입력 추출 (맥락 생성에 필요!)
     import re as _re_ctx
@@ -111,6 +112,10 @@ def make_recommendation(product_name, selections, extra='', session=None, card_q
     _user_context = build_user_context(raw_product, selections, _direct_input_ctx, _session_id)
 
     # ★ 마음 상황판 정보 합치기 (LLM이 사용자 상황을 항상 볼 수 있도록)
+    # ★ 픽코 헌법 포함
+    _PICKO_ID = "You are Picko. A shopping critic on the user's side. User is a first-time buyer solving a problem, not buying a product. Never: fake confidence, pushy recommendations, ad-style language."
+    _user_context = _PICKO_ID + ' / ' + _user_context
+
     _profile = (session or {}).get('user_profile', {})
     if _profile:
         _pp = []
@@ -457,15 +462,10 @@ def make_recommendation(product_name, selections, extra='', session=None, card_q
                 _color_val = v
                 break
 
-    # ★ LLM 기반 범용 검색쿼리 생성 (naver_api.py 담당!)
-    from naver_api import build_search_query
-    search_with_sel = build_search_query(
-        raw_product=raw_product,
-        selections=selections,
-        color_val=_color_val,
-        call_llm_fn=call_llm,
-    )
-    print(f'[검색쿼리] {search_with_sel}')
+    # ★★★ 새 방식: 넓게 검색 → LLM이 골라내기!
+    # (기존 잠금) search_with_sel = build_search_query(...)
+    search_with_sel = _original_product  # 보강 전 제품명! 넓게!
+    print(f'[검색쿼리-넓게] {search_with_sel}')
     # 가격 등급 파싱 (저가/중가/고가/최고가) - 필터링은 4분위로
     _grade = ''
     for part in selections.split():
@@ -492,6 +492,34 @@ def make_recommendation(product_name, selections, extra='', session=None, card_q
             query=search_with_sel,
             seen_products=_seen_products,
         )
+        # ★ 0개면 제품명만으로 재시도! (쿼리 넓히기)
+        if not _pool_products and search_with_sel != raw_product:
+            print(f'[풀재시도] "{search_with_sel}" → 0개! "{raw_product}"로 재시도')
+            _pool_products = search_pool_filtered(
+                query=raw_product,
+                seen_products=_seen_products,
+            )
+        
+        # ★ 바람잡이 다양성! 편중 방지!
+        if _pool_products and len(_pool_products) > 20:
+            try:
+                _div_prompt = (
+                    f"'{_original_product}'을 네이버에서 다양하게 찾기 위한 검색어 2개만.\n"
+                    f"기본 검색으로 이미 많이 나온 종류 말고, 다른 종류로!\n"
+                    f"한 줄에 하나. 다른 말 금지."
+                )
+                _div_result = call_llm(_div_prompt, max_tokens=30).strip()
+                for _dline in _div_result.split('\n'):
+                    _dq = _dline.strip()
+                    if _dq and len(_dq) > 2:
+                        _extra = search_pool_filtered(query=_dq, seen_products=_seen_products)
+                        if _extra:
+                            _pool_products.extend(_extra)
+                            _seen_products.update(p['name'][:20] for p in _extra)
+                            print(f'[바람잡이다양성] "{_dq}" → +{len(_extra)}개')
+            except Exception as e:
+                print(f'[바람잡이오류] {e}')
+        
         print(f'[풀보충] 슬롯{len(_brand_slots)}개 부족 → {len(_pool_products)}개 보충')
     else:
         print(f'[풀스킵] 슬롯{len(_brand_slots)}개 충분 → 200개 수집 생략!')
@@ -580,6 +608,15 @@ def make_recommendation(product_name, selections, extra='', session=None, card_q
         and not any(kw in p['name'] for kw in ['학교', '병원', '카페', '사무실', '센터', '요양원', '교회'])
         and not any(kw in p['name'] for kw in ACCESSORY_KW)]
     print(f'[악세서리제외] → {len(real_products)}개')
+
+    # ★ 카테고리 불일치 제거 (유모차 → 강아지 제외)
+    PET_KEYWORDS = ['강아지', '애견', '반려동물', '펫', '개모차', '고양이', '반려견']
+    if '유모차' in raw_product:
+        before = len(real_products)
+        real_products = [p for p in real_products if not any(kw in p['name'] for kw in PET_KEYWORDS)]
+        removed = before - len(real_products)
+        if removed:
+            print(f'[개모차제거] {removed}개 제거 → {len(real_products)}개')
     
     # 1. 렌탈/구독 제품 제외
     filtered_products = [
@@ -722,47 +759,44 @@ def make_recommendation(product_name, selections, extra='', session=None, card_q
 
     _match_score = lambda p: _score_map.get(p.get('name', ''), 0)
 
-    # ★ LLM이 최종 3개 선택!
-    _candidates = [p for p in real_products if p.get('image_url')][:10]
+    # ★★★ 새 방식: LLM이 마음+3구역 맥락 보고 6개 선택!
+    _candidates = [p for p in real_products if p.get('image_url')][:30]
+    _pick_count = min(6, len(_candidates))  # 후보 부족하면 있는 만큼만!
 
     if len(_candidates) >= 3:
         _candidate_list = []
         for i, p in enumerate(_candidates):
-            score = _match_score(p) if _check_vals else 0
-            # ★ 후기 역추적 브랜드면 가중치 추가!
-            if _review_matched_brands:
-                for rmb in _review_matched_brands:
-                    if rmb in p.get('name', '') or rmb in p.get('mall', ''):
-                        score += 3
-                        print(f'[후기가중치] {p["name"][:20]} +3점 (후기브랜드:{rmb})')
-                        break
-            score_str = f' ★{score}' if score > 0 else ''
-            _candidate_list.append(f'{i+1}. {p["name"][:30]} | {p.get("price","?")}{score_str}')
-
-        # 후기 매칭 브랜드 힌트 LLM에 전달
-        _review_brand_hint = ''
-        if _review_matched_brands:
-            _review_brand_hint = f'\n[후기분석] 실제 후기에서 조건 충족 확인된 브랜드: {", ".join(_review_matched_brands[:3])} → 우선 고려!'
+            _candidate_list.append(f'{i+1}. {p["name"][:40]} | {p.get("price","?")}원')
 
         _rank_prompt = (
-            '[출력형식] 숫자 3개만 콤마로. 예시: 2,5,8\n'
+            f'[출력형식] 서로 다른 제품 숫자 {_pick_count}개만 콤마로. 예시: 2,5,8\n'
+            '[절대금지] 같은 번호 중복 선택 금지! 모두 다른 번호!\n'
             '[절대금지] 설명/이유/마크다운 금지\n'
-            '[절대금지] 찾는 제품(' + product_name + ')과 다른 카테고리 제품 선택 금지\n\n'
+            '[절대금지] 찾는 제품(' + product_name + ')과 다른 카테고리 제품 선택 금지\n'
+            '[절대금지] 악세서리/부속품/시트/커버 선택 금지! 본체만!\n\n'
             '찾는 제품: ' + product_name + '\n'
-            '사용자조건: ' + selections + _no_match_hint + _review_brand_hint + '\n\n'
-            '★점수 = 조건 매칭 수 (높을수록 조건에 맞는 제품)\n'
-            '후보(★점수 높을수록 조건 매칭):\n' + '\n'.join(_candidate_list) + '\n\n'
-            '규칙: ★점수 높은 것 우선 선택. 동점이면 사용자조건 핵심 키워드 포함된 것 선택.\n'
-            '★점수 높은 것 우선, 조건에 맞고 같은 카테고리인 3개 번호만:'
+            '사용자 선택 조건: ' + selections + '\n'
+            '직접입력: ' + (_direct_input or '없음') + '\n\n'
+            '아래 후보에서 사용자 조건에 가장 맞는 6개를 골라주세요.\n'
+            '조건에 맞는 것 우선, 같은 카테고리만!\n\n'
+            '후보:\n' + '\n'.join(_candidate_list) + '\n\n'
+            '6개 번호만:'
         )
         try:
             _rank_result = call_llm(_rank_prompt, max_tokens=30).strip()
-            print(f'[LLM순위원문] {_rank_result}')
+            print(f'[LLM선택원문] {_rank_result}')
             import re as _re_rank
             _found_nums = _re_rank.findall(r'\d+', _rank_result)
-            _rank_nums = [int(n)-1 for n in _found_nums
-                         if 0 < int(n) <= len(_candidates)][:3]
-            print(f'[LLM순위파싱] 숫자={_found_nums} → 인덱스={_rank_nums}')
+            # ★ 중복 제거!
+            _seen_nums = set()
+            _rank_nums = []
+            for n in _found_nums:
+                idx = int(n) - 1
+                if 0 <= idx < len(_candidates) and idx not in _seen_nums:
+                    _seen_nums.add(idx)
+                    _rank_nums.append(idx)
+            _rank_nums = _rank_nums[:6]
+            print(f'[LLM선택파싱] 숫자={_found_nums} → 인덱스={_rank_nums}')
             if len(_rank_nums) >= 2:
                 _ranked = [_candidates[i] for i in _rank_nums if i < len(_candidates)]
                 _selected_idx = set(_rank_nums)
@@ -770,12 +804,12 @@ def make_recommendation(product_name, selections, extra='', session=None, card_q
                     if i not in _selected_idx:
                         _ranked.append(p)
                 real_products = _ranked + [p for p in real_products if p not in _candidates]
-                _names = [_candidates[i]["name"][:12] for i in _rank_nums if i < len(_candidates)]
-                print(f'[LLM순위] {_rank_result} → {_names}')
+                _names = [_candidates[i]["name"][:15] for i in _rank_nums if i < len(_candidates)]
+                print(f'[LLM선택] {_rank_result} → {_names}')
         except Exception as e:
-            print(f'[LLM순위오류] {e}')
+            print(f'[LLM선택오류] {e}')
 
-    print(f'[픽코추천순서] LLM 맥락 기반 선택 완료')
+    print(f'[픽코추천순서] 맥락 기반 6개 선택 완료')
 
     # ★ 10개 후보 블로그 검증! (naver_api.py 담당)
     # 제품명 + 직접입력으로 마음씨 확인!
@@ -905,6 +939,19 @@ def make_recommendation(product_name, selections, extra='', session=None, card_q
     # ★ naver_slots 확정 후 더보기 캐시 저장! (naver_api.py 담당!)
     _locals = locals()
     if '_pending_cache_key' in _locals and '_pending_priced' in _locals:
+        # ★ 더보기 저장 전 악세서리/개모차 필터!
+        _MORE_FILTER_KW = ['커버', '패드', '천갈이', '덮개', '방석', '블랭킷', '보호대',
+            '받침대', '거치대', '홀더', '파우치', '케이스', '스탠드', '브래킷',
+            '쿠션', '목쿠션', '시트커버', '라이너', '장난감', '스티어링']
+        _MORE_PET_KW = ['강아지', '애견', '반려동물', '펫', '개모차', '고양이', '반려견']
+        _before = len(_pending_priced)
+        _pending_priced = [(p, prod) for p, prod in _pending_priced
+            if not any(kw in prod.get('name','') for kw in _MORE_FILTER_KW)
+            and not any(kw in prod.get('name','') for kw in _MORE_PET_KW)]
+        _filtered = _before - len(_pending_priced)
+        if _filtered:
+            print(f'[더보기필터] {_filtered}개 악세서리/개모차 제거!')
+        
         from naver_api import save_more_cache
         _shown_names = {s.get('name', '')[:20] for s in naver_slots if s.get('name')}
         _shown_urls  = {s.get('product_url', '') for s in naver_slots if s.get('product_url')}
