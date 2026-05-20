@@ -135,7 +135,7 @@ FURNITURE_BOARDS = {
         ('수납형태', ['서랍형', '리프트형', '오픈형', '없음']),
         ('헤드유무', ['헤드있음', '헤드없음']),
         ('매트리스', ['포함', '별도구매']),
-        ('색상', ['밝은톤', '중간톤', '어두운톤']),
+        ('색상', ['화이트', '라이트그레이', '그레이', '블랙', '라이트우드', '미디엄우드', '다크우드']),
         ('가격', ['저가', '중가', '고가']),
         ('직접입력', []),
     ],
@@ -144,7 +144,7 @@ FURNITURE_BOARDS = {
         ('수납형태', ['서랍형', '리프트형', '오픈형', '없음']),
         ('헤드유무', ['헤드있음', '헤드없음']),
         ('헤드기능', ['수납형', '조명형', '기본형']),
-        ('프레임색상', ['밝은톤', '중간톤', '어두운톤']),
+        ('프레임색상', ['화이트', '라이트그레이', '그레이', '블랙', '라이트우드', '미디엄우드', '다크우드']),
         ('매트리스', ['포함', '별도구매']),
         ('매트리스종류', ['스프링', '포켓스프링', '메모리폼', '라텍스']),
         ('가격', ['저가', '중가', '고가', '프리미엄']),
@@ -156,7 +156,7 @@ FURNITURE_BOARDS = {
         ('헤드유무', ['헤드있음', '헤드없음']),
         ('헤드기능', ['수납형', '조명형', '기본형']),
         ('매트리스', ['포함', '별도구매']),
-        ('색상', ['밝은톤', '중간톤', '어두운톤']),
+        ('색상', ['화이트', '라이트그레이', '그레이', '블랙', '라이트우드', '미디엄우드', '다크우드']),
         ('가격', ['저가', '중가', '고가', '프리미엄']),
         ('직접입력', []),
     ],
@@ -166,7 +166,7 @@ FURNITURE_BOARDS = {
         ('헤드유무', ['헤드있음', '헤드없음']),
         ('헤드기능', ['수납형', '조명형', '기본형']),
         ('매트리스', ['포함', '별도구매']),
-        ('색상', ['밝은톤', '중간톤', '어두운톤']),
+        ('색상', ['화이트', '라이트그레이', '그레이', '블랙', '라이트우드', '미디엄우드', '다크우드']),
         ('가격', ['저가', '중가', '고가', '프리미엄']),
         ('직접입력', []),
     ],
@@ -174,7 +174,7 @@ FURNITURE_BOARDS = {
         ('구성', ['더블퀸', '킹+싱글', '맞춤형']),
         ('수납형태', ['서랍형', '리프트형', '없음']),
         ('매트리스', ['포함', '별도구매']),
-        ('색상', ['밝은톤', '중간톤', '어두운톤']),
+        ('색상', ['화이트', '라이트그레이', '그레이', '블랙', '라이트우드', '미디엄우드', '다크우드']),
         ('가격', ['저가', '중가', '고가', '프리미엄']),
         ('직접입력', []),
     ],
@@ -215,7 +215,14 @@ FURNITURE_BOARDS = {
     '소파_1인용_패브릭': [
         ('쿠션감', ['푹신함', '적당함', '단단함']),
         ('패브릭기능', ['기본', '방수', '오염방지', '스크래치방지']),
-        ('색상', ['밝은톤', '중간톤', '어두운톤']),
+        ('색상', ['베이지', '아이보리', '그레이', '크림']),
+        ('가격', ['저가', '중가', '고가', '프리미엄']),
+        ('직접입력', []),
+    ],
+    '소파_1인용_가죽': [
+        ('쿠션감', ['푹신함', '적당함', '단단함']),
+        ('가죽종류', ['천연가죽', '반합성가죽', '인조가죽']),
+        ('색상', ['베이지', '화이트', '카멜', '브라운', '버건디', '네이비', '블랙']),
         ('가격', ['저가', '중가', '고가', '프리미엄']),
         ('직접입력', []),
     ],
@@ -224,7 +231,16 @@ FURNITURE_BOARDS = {
         ('좌방석쿠션', ['푹신함', '적당함', '단단함']),
         ('패브릭기능', ['기본', '방수', '오염방지', '스크래치방지']),
         ('커버세탁', ['가능', '불가능']),
-        ('색상', ['밝은톤', '중간톤', '어두운톤']),
+        ('색상', ['베이지', '아이보리', '그레이', '크림']),
+        ('가격', ['저가', '중가', '고가', '프리미엄']),
+        ('직접입력', []),
+    ],
+    '소파_3인용_가죽': [
+        ('형태', ['직선형', '코너형', '카우치형', '모듈형']),
+        ('좌방석쿠션', ['푹신함', '적당함', '단단함']),
+        ('가죽종류', ['천연가죽', '반합성가죽', '인조가죽']),
+        ('스크래치방지', ['중요', '상관없음']),
+        ('색상', ['베이지', '화이트', '카멜', '브라운', '버건디', '네이비', '블랙']),
         ('가격', ['저가', '중가', '고가', '프리미엄']),
         ('직접입력', []),
     ],
@@ -233,7 +249,16 @@ FURNITURE_BOARDS = {
         ('좌방석쿠션', ['푹신함', '적당함', '단단함']),
         ('패브릭기능', ['기본', '방수', '오염방지', '스크래치방지']),
         ('프레임', ['원목', '스틸', '혼합']),
-        ('색상', ['밝은톤', '중간톤', '어두운톤']),
+        ('색상', ['베이지', '아이보리', '그레이', '크림']),
+        ('가격', ['저가', '중가', '고가', '프리미엄']),
+        ('직접입력', []),
+    ],
+    '소파_6인용이상_가죽': [
+        ('형태', ['직선형', '코너형', '카우치형', '모듈형']),
+        ('좌방석쿠션', ['푹신함', '적당함', '단단함']),
+        ('가죽종류', ['천연가죽', '반합성가죽', '인조가죽']),
+        ('스크래치방지', ['중요', '상관없음']),
+        ('색상', ['베이지', '화이트', '카멜', '브라운', '버건디', '네이비', '블랙']),
         ('가격', ['저가', '중가', '고가', '프리미엄']),
         ('직접입력', []),
     ],
@@ -253,17 +278,17 @@ FURNITURE_BOARDS = {
         ('상판재질', ['PB', 'MDF', 'LPM', '원목']),
         ('수납', ['있음', '없음']),
         ('케이블정리', ['있음', '없음']),
-        ('색상', ['밝은톤', '중간톤', '어두운톤']),
+        ('색상', ['화이트', '라이트그레이', '그레이', '블랙', '라이트우드', '미디엄우드', '다크우드', '민트', '올리브', '네이비', '핑크', '라벤더']),
         ('가격', ['저가', '중가', '고가', '프리미엄']),
         ('직접입력', []),
     ],
     '책상_학생용_높이조절': [
         ('상판각도조절', ['가능', '불가능']),
-        ('높이조절방식', ['수동', '전동']),
+        ('높이조절방식', ['일반형', '수동', '전동']),
         ('상판크기', ['100cm', '120cm', '140cm']),
         ('상판재질', ['MDF', 'PB', '원목']),
         ('수납', ['서랍형', '선반형', '없음']),
-        ('색상', ['밝은톤', '중간톤', '어두운톤']),
+        ('색상', ['화이트', '라이트그레이', '그레이', '블랙', '라이트우드', '미디엄우드', '다크우드', '민트', '올리브', '네이비', '핑크', '라벤더']),
         ('가격', ['저가', '중가', '고가', '프리미엄']),
         ('직접입력', []),
     ],
@@ -351,18 +376,18 @@ FURNITURE_BOARDS = {
         ('폭', ['800', '1200', '1600', '1800', '2000', '2400']),
         ('높이', ['1800', '2000', '2100', '2400']),
         ('소재', ['파티클보드', 'MDF', '원목', '스틸']),
-        ('내부구성', ['행거형', '선반형', '혼합형']),
+        ('내부구성', ['행거형', '선반형']),
         ('거울', ['없음', '있음']),
-        ('색상', ['밝은톤', '중간톤', '어두운톤']),
+        ('색상', ['화이트', '라이트그레이', '그레이', '블랙', '라이트우드', '미디엄우드', '다크우드', '민트', '올리브', '네이비', '핑크', '라벤더']),
         ('가격', ['저가', '중가', '고가', '프리미엄']),
         ('직접입력', []),
     ],
     '수납가구_서랍장': [
         ('단수', ['3단', '4단', '5단']),
         ('폭', ['600', '800', '1000', '1200']),
-        ('소재', ['플라스틱', 'MDF', '원목', '혼합']),
+        ('소재', ['플라스틱', 'MDF', '원목']),
         ('손잡이', ['없음', '매립형', '돌출형']),
-        ('색상', ['밝은톤', '중간톤', '어두운톤']),
+        ('색상', ['화이트', '라이트그레이', '그레이', '블랙', '라이트우드', '미디엄우드', '다크우드', '민트', '올리브', '네이비', '핑크', '라벤더']),
         ('가격', ['저가', '중가', '고가']),
         ('직접입력', []),
     ],
@@ -370,18 +395,18 @@ FURNITURE_BOARDS = {
         ('높이', ['1200', '1500', '1800', '2000']),
         ('폭', ['600', '800', '1000', '1200']),
         ('선반조절', ['가능', '불가능']),
-        ('소재', ['MDF', 'PB', '원목', '혼합']),
-        ('색상', ['밝은톤', '중간톤', '어두운톤']),
+        ('소재', ['MDF', 'PB', '원목']),
+        ('색상', ['화이트', '라이트그레이', '그레이', '블랙', '라이트우드', '미디엄우드', '다크우드', '민트', '올리브', '네이비', '핑크', '라벤더']),
         ('가격', ['저가', '중가', '고가', '프리미엄']),
         ('직접입력', []),
     ],
     '수납가구_화장대': [
         ('폭', ['600', '800', '1000', '1200']),
         ('거울', ['없음', '있음', '접이식']),
-        ('수납', ['서랍형', '선반형', '혼합형']),
+        ('수납', ['서랍형', '선반형', '없음']),
         ('조명', ['없음', '기본', 'LED조명']),
         ('의자포함', ['없음', '포함']),
-        ('색상', ['밝은톤', '중간톤', '어두운톤']),
+        ('색상', ['화이트', '라이트그레이', '그레이', '블랙', '라이트우드', '미디엄우드', '다크우드', '민트', '올리브', '네이비', '핑크', '라벤더']),
         ('가격', ['저가', '중가', '고가', '프리미엄']),
         ('직접입력', []),
     ],
@@ -499,6 +524,17 @@ FURNITURE_BOARDS = {
         ('가격', ['저가', '중가', '고가']),
         ('직접입력', []),
     ],
+
+    # ★ 유아 독서대 전용 (네이버 실제 데이터 기반)
+    '유아독서대': [
+        ('소재', ['원목', '아크릴(투명)', '알루미늄']),
+        ('조절기능', ['각도조절', '높이조절', '높이각도조절', '고정형']),
+        ('책고정', ['코일스프링', '북마커', '홈고정', '스토퍼']),
+        ('사용형태', ['책상용', '좌식용', '침대용', '휴대용']),
+        ('색상', ['원목색', '화이트', '투명', '블랙']),
+        ('가격', ['저가', '중가', '고가', '최고가']),
+        ('직접입력', []),
+    ],
 }
 
 # 별칭 매핑
@@ -511,12 +547,17 @@ BOARD_ALIAS = {
 # ─────────────────────────────────────────
 # 렌더링
 # ─────────────────────────────────────────
-def render_board(items, skip_labels=None, pre_selected=None):
+def render_board(items, skip_labels=None, pre_selected=None, price_override=None, color_override=None, product=None):
     """상황판 렌더링. pre_selected에 있는 항목은 미리 체크 표시"""
     skip_labels = skip_labels or []
     pre_selected = pre_selected or {}
     lines = ['조건을 선택해주세요']
+
     for label, options in items:
+        if label == '가격' and price_override:
+            options = price_override
+        elif label in ('색상', '색상계열', '목재톤') and color_override:
+            options = color_override
         if label == '직접입력':
             lines.append('\n[E 직접입력]\n원하는 조건을 직접 입력하세요')
         else:
@@ -526,6 +567,7 @@ def render_board(items, skip_labels=None, pre_selected=None):
                 lines.append(f'\n[{label}]\n' + ' / '.join(clean_options) + f' CHECKED:{checked_val}')
             else:
                 lines.append(f'\n[{label}]\n' + ' / '.join(clean_options))
+
     return '\n'.join(lines)
 
 
@@ -536,16 +578,43 @@ def get_board(product: str = '', context: str = None, choice=None) -> str:
     # choice가 dict면 selected_conditions (이미 선택된 조건)
     skip_labels = []
     selected = {}
+    # 가격 + 컬러 동적 교체
+    _dynamic_price = []
+    _dynamic_color = []
+    SOFA_MATERIALS = ['가죽','인조가죽','패브릭','기능성패브릭','벨벳','마이크로화이버']
+    # selected 먼저 처리 (소재 추출을 위해 color_range 호출 전에)
     if isinstance(choice, dict):
         selected = choice
         choice = None
-        # LLM이 이미 정확한 항목명으로 추출하므로 그대로 사용
-        # 삭제 대신 미리 체크 표시로 보여줌
-        skip_labels = []  # 더 이상 삭제 안 함
-
-        # selected에서 context + choice 자동 추출 (context 있어도 choice 없으면 추출)
+        skip_labels = []
         context, choice = resolve_context(product, selected, context, choice)
-        # ZONE_RULES에 없는 제품은 context 없이 진행 (보드 직접 찾기)
+    if product:
+        try:
+            from naver_api import get_price_range, get_color_range, get_price_grade
+            # 저가/중가/고가/최고가 버튼으로 교체
+            grade = get_price_grade(product)
+            if grade and grade.get("low"):
+                _dynamic_price = [
+                    f"저가|{grade.get('low', '')}",
+                    f"중가|{grade.get('mid', '')}",
+                    f"고가|{grade.get('high', '')}",
+                    f"최고가|{grade.get('top', '')}",
+                ]
+            else:
+                _dynamic_price = get_price_range(product)
+            # 소재(choice 또는 selected[소재])로 가죽/패브릭 구분
+            _material = None
+            if isinstance(choice, str) and choice in SOFA_MATERIALS:
+                _material = choice
+            elif selected.get('소재') in SOFA_MATERIALS:
+                _material = selected['소재']
+            _dynamic_color = get_color_range(product, material=_material)
+        except Exception as e:
+            print(f'[동적구간오류] {e}')
+
+
+
+
     """
     가구/인테리어 상황판 반환
     product: 대분류 (침대, 소파, 책상...)
@@ -567,6 +636,18 @@ def get_board(product: str = '', context: str = None, choice=None) -> str:
     if context in CTX_NORMALIZE:
         context = CTX_NORMALIZE[context]
     
+    # 복합 제품명 → 바로 LLM 폴백 (네이버 패턴 분석)
+    COMPOUND_PRODUCTS = [
+        '게이밍의자', '캠핑의자', '사무의자', '안마의자',
+        '회전책장', '전면책장', '소파베드', '리클라이너',
+        '높이조절책상', '붙박이장', '드레스룸', '아일랜드식탁',
+        '확장식탁', '좌식소파', '코너소파',
+    ]
+    if product in COMPOUND_PRODUCTS:
+        from .board_llm import get_board as llm_b
+        print(f'[복합제품] {product} → 네이버 패턴 분석')
+        return llm_b(product=product)
+
     # product 정규화
     PROD_NORMALIZE = {
         '책장': '수납가구', '서랍장': '수납가구', '화장대': '수납가구',
@@ -582,17 +663,23 @@ def get_board(product: str = '', context: str = None, choice=None) -> str:
         '캔들': '소품_캔들', '디퓨저': '소품_디퓨저', '쿠션': '소품_쿠션',
         '트레이': '소품_트레이', '탁상시계': '소품_액자', '벽시계': '소품_액자',
         '조명': '소품_조명_스탠드',
+        # ★ 독서대 → 고정 상황판
+        '독서대': '유아독서대',
+        '유아독서대': '유아독서대',
+        '아기독서대': '유아독서대',
+        '어린이독서대': '유아독서대',
+        '북스탠드': '유아독서대',
     }
     if orig_product in DIRECT_SOFA_MAP:
         key = DIRECT_SOFA_MAP[orig_product]
         if key in FURNITURE_BOARDS:
-            return render_board(FURNITURE_BOARDS[key], skip_labels=skip_labels, pre_selected=selected)
+            return render_board(FURNITURE_BOARDS[key], skip_labels=skip_labels, pre_selected=selected, price_override=_dynamic_price, color_override=_dynamic_color, product=orig_product)
     if product in PROD_NORMALIZE:
         product = PROD_NORMALIZE[product]
 
     # 러그/카페트 → 바로 3구역
     if product in ['러그', '카페트']:
-        return render_board(FURNITURE_BOARDS['러그'], skip_labels=skip_labels, pre_selected=selected)
+        return render_board(FURNITURE_BOARDS['러그'], skip_labels=skip_labels, pre_selected=selected, price_override=_dynamic_price, color_override=_dynamic_color, product=orig_product)
 
     # 슈퍼싱글 등 침대 사이즈가 product로 들어오는 경우
     BED_SIZE_MAP = {
@@ -602,13 +689,13 @@ def get_board(product: str = '', context: str = None, choice=None) -> str:
         '싱글침대': '침대_싱글',
     }
     if orig_product in BED_SIZE_MAP:
-        return render_board(FURNITURE_BOARDS[BED_SIZE_MAP[orig_product]], skip_labels=skip_labels, pre_selected=selected)
+        return render_board(FURNITURE_BOARDS[BED_SIZE_MAP[orig_product]], skip_labels=skip_labels, pre_selected=selected, price_override=_dynamic_price, color_override=_dynamic_color, product=orig_product)
 
     # ── context가 재질/용도인 경우 바로 3구역 직행 ──
     DIRECT_CONTEXT = {
         # 식탁
         '원목': '식탁_원목', '대리석': '식탁_대리석', '세라믹': '식탁_세라믹',
-        # 책상
+        # 책상 (product가 책상일 때만!)
         '학생용': '책상_학생용_높이조절', '사무용': '책상_사무용_일반형', '게이밍': '책상_게이밍',
         # 커튼
         '암막커튼': '커튼_암막', '암막': '커튼_암막',
@@ -616,12 +703,22 @@ def get_board(product: str = '', context: str = None, choice=None) -> str:
         # 침대 사이즈 직행
         '슈퍼싱글': '침대_슈퍼싱글', '퀸': '침대_퀸', '킹': '침대_킹', '싱글': '침대_싱글',
         # 소파 소재 직행 (인원수 스킵)
-        '패브릭': '소파_3인용_패브릭', '가죽': '소파_3인용_패브릭',
+        '패브릭': '소파_3인용_패브릭', '가죽': '소파_3인용_가죽',
+    }
+    # product 검증: 의자+사무용 → 책상 상황판 오가는 버그 방지
+    DIRECT_CONTEXT_PRODUCTS = {
+        '학생용': '책상', '사무용': '책상', '게이밍': '책상',
+        '원목': '식탁', '대리석': '식탁', '세라믹': '식탁',
+        '암막커튼': '커튼', '암막': '커튼', '린넨커튼': '커튼', '린넨': '커튼',
+        '슈퍼싱글': '침대', '퀸': '침대', '킹': '침대', '싱글': '침대',
+        '패브릭': '소파', '가죽': '소파',
     }
     if context in DIRECT_CONTEXT:
-        key = DIRECT_CONTEXT[context]
-        if key in FURNITURE_BOARDS:
-            return render_board(FURNITURE_BOARDS[key], skip_labels=skip_labels, pre_selected=selected)
+        expected = DIRECT_CONTEXT_PRODUCTS.get(context, '')
+        if not expected or orig_product == expected or product == expected:
+            key = DIRECT_CONTEXT[context]
+            if key in FURNITURE_BOARDS:
+                return render_board(FURNITURE_BOARDS[key], skip_labels=skip_labels, pre_selected=selected, price_override=_dynamic_price, color_override=_dynamic_color, product=orig_product)
 
     # context가 product와 같으면 무시
     if context == product or context == orig_product:
@@ -637,11 +734,11 @@ def get_board(product: str = '', context: str = None, choice=None) -> str:
         # 수납가구 세부 아이템 직접 상황판
         direct_board_key = f'수납가구_{orig_product}'
         if direct_board_key in FURNITURE_BOARDS:
-            return render_board(FURNITURE_BOARDS[direct_board_key], skip_labels=skip_labels, pre_selected=selected)
+            return render_board(FURNITURE_BOARDS[direct_board_key], skip_labels=skip_labels, pre_selected=selected, price_override=_dynamic_price, color_override=_dynamic_color, product=orig_product)
         # 소품 세부 아이템
         direct_board_key2 = f'소품_{orig_product}'
         if direct_board_key2 in FURNITURE_BOARDS:
-            return render_board(FURNITURE_BOARDS[direct_board_key2], skip_labels=skip_labels, pre_selected=selected)
+            return render_board(FURNITURE_BOARDS[direct_board_key2], skip_labels=skip_labels, pre_selected=selected, price_override=_dynamic_price, color_override=_dynamic_color, product=orig_product)
         options = FURNITURE_2ZONE.get(product)
         if options:
             return 'CONTEXT_SELECT:' + '/'.join(options)
@@ -654,25 +751,21 @@ def get_board(product: str = '', context: str = None, choice=None) -> str:
     if product == '소파' and context in ['1인용','2인용','3인용','4인용','6인용이상']:
         if not choice:
             return 'CONTEXT_SELECT:' + '/'.join(SOFA_MATERIAL)
-        # 소파 + 인원 + 소재 → 3구역
-        key = f'소파_{context}_{choice}'
-        if key in FURNITURE_BOARDS:
-            return render_board(FURNITURE_BOARDS[key], skip_labels=skip_labels, pre_selected=selected)
-        # 없으면 가장 가까운 것
-        key2 = f'소파_{context}_패브릭'
-        if key2 in FURNITURE_BOARDS:
-            return render_board(FURNITURE_BOARDS[key2], skip_labels=skip_labels, pre_selected=selected)
-        return render_board(FURNITURE_BOARDS['소파_3인용_패브릭'], skip_labels=skip_labels, pre_selected=selected)
+        # 소파 + 인원 + 소재 → board_llm.py 네이버 패턴으로! (범용)
+        from .board_llm import get_board as llm_b
+        _sofa_query = f'{choice} {context} 소파'.strip()
+        print(f'[소파패턴] {_sofa_query} → 네이버 패턴 사용')
+        return llm_b(product=_sofa_query)
 
     # 책상: 용도 선택 후 형태 선택 필요
     if product == '책상' and context in ['사무용','학생용','게이밍']:
         if context == '게이밍':
-            return render_board(FURNITURE_BOARDS['책상_게이밍'], skip_labels=skip_labels, pre_selected=selected)
+            return render_board(FURNITURE_BOARDS['책상_게이밍'], skip_labels=skip_labels, pre_selected=selected, price_override=_dynamic_price, color_override=_dynamic_color, product=orig_product)
         if not choice:
             return 'CONTEXT_SELECT:' + '/'.join(DESK_TYPE)
         key = f'책상_{context}_{choice}'
         if key in FURNITURE_BOARDS:
-            return render_board(FURNITURE_BOARDS[key], skip_labels=skip_labels, pre_selected=selected)
+            return render_board(FURNITURE_BOARDS[key], skip_labels=skip_labels, pre_selected=selected, price_override=_dynamic_price, color_override=_dynamic_color, product=orig_product)
         # 폴백
         from .board_llm import get_board as llm_b
         return llm_b(product=f'{context} {context} 책상 {choice}형')
@@ -680,12 +773,16 @@ def get_board(product: str = '', context: str = None, choice=None) -> str:
     # 일반 조합: product_context
     key = f'{product}_{context}'
     if key in FURNITURE_BOARDS:
-        return render_board(FURNITURE_BOARDS[key], skip_labels=skip_labels, pre_selected=selected)
+        return render_board(FURNITURE_BOARDS[key], skip_labels=skip_labels, pre_selected=selected, price_override=_dynamic_price, color_override=_dynamic_color, product=orig_product)
 
     # context만으로도 찾기
     if context in FURNITURE_BOARDS:
-        return render_board(FURNITURE_BOARDS[context], skip_labels=skip_labels, pre_selected=selected)
+        return render_board(FURNITURE_BOARDS[context], skip_labels=skip_labels, pre_selected=selected, price_override=_dynamic_price, color_override=_dynamic_color, product=orig_product)
 
-    # LLM 폴백
+    # LLM 폴백 → context가 있으면 원래 product명 그대로 사용
+    # (context를 합치면 엉뚱한 카테고리로 변환될 수 있음)
     from .board_llm import get_board as llm_b
-    return llm_b(product=f'{product} {context}')
+    _search_product = orig_product if orig_product else product
+    if context and context not in ['일반', '기본']:
+        _search_product = f'{context} {_search_product}'
+    return llm_b(product=_search_product)

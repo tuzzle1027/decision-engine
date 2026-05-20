@@ -16,204 +16,55 @@ import re
 import urllib.request
 
 from flask import Flask, request, jsonify, send_from_directory
+import threading
+import uuid
 
+VERSION = 'v18'
+
+# ── API 키 (환경변수에서만 읽기) ──
+OPENAI_API_KEY      = os.environ.get('OPENAI_API_KEY', '')
+APIFY_TOKEN         = os.environ.get('APIFY_TOKEN', '')
+ANTHROPIC_API_KEY   = os.environ.get('ANTHROPIC_API_KEY', '')
+NAVER_CLIENT_ID     = os.environ.get('NAVER_CLIENT_ID', '')
+NAVER_CLIENT_SECRET = os.environ.get('NAVER_CLIENT_SECRET', '')
+GOOGLE_API_KEY      = os.environ.get('GOOGLE_API_KEY', '')
+GOOGLE_CSE_ID       = os.environ.get('GOOGLE_CSE_ID', '954e57b3b58044a16')
+
+
+# ── naver_api.py로 분리 ──
 from ocr_layer          import ocr_layer
 from product_classifier import classify_product, get_out_of_scope_message
 from sensor_layer       import sensor_layer
 from policy_layer       import SYSTEM_RULES, POLICE_RULES
-from review_collectors  import CollectorManager
-from review_engines     import ReviewEngine
+# review_collectors, review_engines → 현재 미사용 (비용 절감으로 제거됨)
 from board_vs           import detect_vs, get_vs_first_question, get_vs_next_question
 
-VERSION = 'v15'
+from naver_api import (
+    _JOBS,
+    _DESIRE_CACHE,
+    start_desire_prefetch,
+    search_google_images,
+    search_naver_images,
+    search_naver_shopping_images,
+    verify_images_batch,
+    search_desire_board_images,
+    search_instagram_images,
+)
 
-# ── API 키 (환경변수에서만 읽기) ──
-OPENAI_API_KEY    = os.environ.get('OPENAI_API_KEY', '')
-APIFY_TOKEN       = os.environ.get('APIFY_TOKEN', '')
-ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
-NAVER_CLIENT_ID   = os.environ.get('NAVER_CLIENT_ID', '')
-NAVER_CLIENT_SECRET = os.environ.get('NAVER_CLIENT_SECRET', '')
-GOOGLE_API_KEY    = os.environ.get('GOOGLE_API_KEY', '')
-GOOGLE_CSE_ID     = os.environ.get('GOOGLE_CSE_ID', '954e57b3b58044a16')
-
-
-def search_google_images(keyword: str, limit: int = 3) -> list:
+def call_llm(prompt, system='', max_tokens=1000, use_sonnet=False):
     """
-    Google Custom Search API 이미지 검색
-    하루 100건 무료
-    returns: [{'url': '...', 'caption': '...'}, ...]
+    use_sonnet=True → Claude Sonnet (살까말까/VS 복잡한 감정 대화)
+    use_sonnet=False → Claude Haiku (단순 라우팅/검색어/상황판)
     """
-    if not GOOGLE_API_KEY or not GOOGLE_CSE_ID:
-        print('[Google이미지] 키 없음 → 네이버로 폴백')
-        return search_naver_images(keyword, limit)
-    try:
-        import urllib.parse
-        query = urllib.parse.quote(keyword)
-        url = (
-            f'https://www.googleapis.com/customsearch/v1'
-            f'?key={GOOGLE_API_KEY}'
-            f'&cx={GOOGLE_CSE_ID}'
-            f'&q={query}'
-            f'&searchType=image'
-            f'&num={limit}'
-            f'&lr=lang_ko'
-        )
-        req = urllib.request.Request(url)
-        res = urllib.request.urlopen(req, timeout=10)
-        data = json.loads(res.read())
-        items = data.get('items', [])
-        images = []
-        for item in items:
-            url = item.get('link', '')
-            caption = item.get('title', '')[:40]
-            if url:
-                images.append({'url': url, 'caption': caption})
-        print(f'[Google이미지] {keyword} → {len(images)}개')
-        return images
-    except Exception as e:
-        print(f'[Google이미지 오류] {e} → 네이버로 폴백')
-        return search_naver_images(keyword, limit)
-
-
-def search_desire_board_images(product: str, limit_per_style: int = 1) -> list:
-    """
-    욕망 스토리보드 이미지 검색
-    LLM으로 6가지 스타일 검색어 생성
-    → 네이버 이미지 각 1장씩 → 총 6장
-    returns: [{'url': '...', 'caption': '...', 'style': '...'}, ...]
-    """
-    try:
-        # LLM으로 6가지 스타일 검색어 생성
-        style_prompt = f""""{product}"를 6가지 완전히 다른 스타일로 검색어를 만들어주세요.
-
-스타일 기준:
-1. 최신 트렌드 (2024-2025)
-2. 유니크/개성있는 디자인
-3. 클래식/전통적인 디자인
-4. 미니멀/심플
-5. 북유럽/스칸디나비아
-6. 럭셔리/프리미엄
-
-규칙:
-- 각 검색어는 네이버 이미지 검색용
-- 한국어로
-- 한 줄에 하나씩
-- 번호 없이 검색어만
-- 예: 패브릭 소파 북유럽 트렌드
-
-6줄만 출력."""
-
-        style_queries = call_llm(style_prompt, max_tokens=200).strip().split('\n')
-        style_queries = [q.strip() for q in style_queries if q.strip()][:6]
-
-        STYLE_NAMES = ['트렌드', '유니크', '클래식', '미니멀', '북유럽', '럭셔리']
-
-        print(f'[욕망보드] 검색어: {style_queries}')
-
-        images = []
-        for i, query in enumerate(style_queries):
-            results = search_naver_images(query, limit=1)
-            if results:
-                results[0]['style'] = STYLE_NAMES[i] if i < len(STYLE_NAMES) else f'스타일{i+1}'
-                results[0]['query'] = query
-                images.append(results[0])
-
-        print(f'[욕망보드] 총 {len(images)}장 수집')
-        return images
-
-    except Exception as e:
-        print(f'[욕망보드 오류] {e}')
-        return []
-    """
-    네이버 이미지 검색 API
-    무료, 빠름, 이미 키 있음
-    returns: [{'url': '...', 'caption': '...'}, ...]
-    """
-    if not NAVER_CLIENT_ID or not NAVER_CLIENT_SECRET:
-        print('[네이버이미지] 키 없음')
-        return []
-    try:
-        import urllib.parse
-        query = urllib.parse.quote(keyword)
-        req = urllib.request.Request(
-            f'https://openapi.naver.com/v1/search/image?query={query}&display={limit}&sort=sim',
-            headers={
-                'X-Naver-Client-Id': NAVER_CLIENT_ID,
-                'X-Naver-Client-Secret': NAVER_CLIENT_SECRET,
-            }
-        )
-        res = urllib.request.urlopen(req, timeout=5)
-        data = json.loads(res.read())
-        items = data.get('items', [])
-        images = []
-        for item in items:
-            url = item.get('link', '')
-            caption = item.get('title', '').replace('<b>', '').replace('</b>', '')[:30]
-            if url:
-                images.append({'url': url, 'caption': caption})
-        print(f'[네이버이미지] {keyword} → {len(images)}개')
-        return images
-    except Exception as e:
-        print(f'[네이버이미지 오류] {e}')
-        return []
-
-
-def search_instagram_images(keyword: str, limit: int = 3) -> list:
-    """
-    Apify apidojo/instagram-scraper
-    startUrls 방식
-    """
-    if not APIFY_TOKEN:
-        print('[Apify] APIFY_TOKEN 없음')
-        return []
-    try:
-        from apify_client import ApifyClient
-        client = ApifyClient(APIFY_TOKEN)
-        hashtag = keyword.replace(' ', '').replace('#', '')
-
-        # 영어로 번역 (인스타그램 해시태그용)
-        try:
-            translate_prompt = f'"{keyword}"를 인스타그램 해시태그용 영어로 번역하세요. 한 단어 또는 붙여쓰기로만 출력. 예: birchwood, fabricsofa'
-            eng_hashtag = call_llm(translate_prompt, max_tokens=15).strip().replace(' ', '').replace('#', '')
-            if eng_hashtag:
-                hashtag = eng_hashtag
-                print(f'[Apify] 번역: {keyword} → #{hashtag}')
-        except:
-            pass
-        run_input = {
-            "startUrls": [
-                {"url": f"https://www.instagram.com/explore/tags/{hashtag}/"}
-            ],
-            "resultsLimit": limit,
-        }
-        run = client.actor("apidojo/instagram-scraper").call(run_input=run_input)
-        images = []
-        for item in client.dataset(run["defaultDatasetId"]).iterate_items():
-            url = item.get('displayUrl') or item.get('imageUrl') or item.get('thumbnailUrl', '')
-            caption = item.get('caption', '')[:50] if item.get('caption') else ''
-            if url:
-                images.append({'url': url, 'caption': caption})
-            if len(images) >= limit:
-                break
-        print(f'[Apify apidojo] {keyword} → {len(images)}개')
-        return images
-    except Exception as e:
-        print(f'[Apify 오류] {e}')
-        return []
-
-
-# ===============================
-# LLM 호출 (Anthropic 우선, OpenAI 폴백)
-# ===============================
-def call_llm(prompt, system='', max_tokens=1000):
     if ANTHROPIC_API_KEY:
+        model = 'claude-sonnet-4-6' if use_sonnet else 'claude-haiku-4-5-20251001'
         headers = {
             'Content-Type': 'application/json',
             'x-api-key': ANTHROPIC_API_KEY,
             'anthropic-version': '2023-06-01'
         }
         body = json.dumps({
-            'model': 'claude-haiku-4-5-20251001',
+            'model': model,
             'max_tokens': max_tokens,
             'system': system,
             'messages': [{'role': 'user', 'content': prompt}]
@@ -224,7 +75,9 @@ def call_llm(prompt, system='', max_tokens=1000):
         )
         try:
             res = urllib.request.urlopen(req)
-            return json.loads(res.read())['content'][0]['text']
+            result = json.loads(res.read())['content'][0]['text']
+            print(f'[LLM] {"Sonnet" if use_sonnet else "Haiku"} 사용')
+            return result
         except:
             pass
 
@@ -249,6 +102,55 @@ def call_llm(prompt, system='', max_tokens=1000):
         return json.loads(res.read())['choices'][0]['message']['content']
     except Exception as e:
         return f'[LLM 오류] {e}'
+
+
+def call_llm_stream(prompt, system='', max_tokens=2000):
+    """
+    스트리밍 LLM - 토큰 하나씩 yield
+    카드 1개씩 생성 + 글자 단위 실시간 출력용
+    비용 변화 없음! 전송 방식만 다름.
+    """
+    if not ANTHROPIC_API_KEY:
+        # API 키 없으면 일반 호출로 폴백
+        yield call_llm(prompt, system=system, max_tokens=max_tokens)
+        return
+    try:
+        body = json.dumps({
+            'model': 'claude-haiku-4-5-20251001',
+            'max_tokens': max_tokens,
+            'system': system,
+            'stream': True,
+            'messages': [{'role': 'user', 'content': prompt}]
+        }).encode()
+        req = urllib.request.Request(
+            'https://api.anthropic.com/v1/messages',
+            data=body,
+            headers={
+                'Content-Type': 'application/json',
+                'x-api-key': ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01'
+            },
+            method='POST'
+        )
+        res = urllib.request.urlopen(req)
+        for line in res:
+            line = line.decode('utf-8').strip()
+            if not line.startswith('data: '):
+                continue
+            data_str = line[6:]
+            if data_str == '[DONE]':
+                break
+            try:
+                data = json.loads(data_str)
+                if data.get('type') == 'content_block_delta':
+                    text = data.get('delta', {}).get('text', '')
+                    if text:
+                        yield text
+            except:
+                pass
+    except Exception as e:
+        print(f'[LLM스트림오류] {e}')
+        yield call_llm(prompt, system=system, max_tokens=max_tokens)
 
 
 # ===============================
@@ -278,17 +180,20 @@ def get_constraint_hint(constraint_interventions):
 def _init_session(session):
     if session is None:
         session = {}
-    session.setdefault('stage', None)        # None → board_shown → confirm → selected
+    session.setdefault('stage', None)
     session.setdefault('product_name', '')
-    session.setdefault('raw_product', '')    # 원래 입력값
-    session.setdefault('selections', '')     # 상황판 선택값
-    session.setdefault('summary', '')        # LLM 요약문
+    session.setdefault('raw_product', '')
+    session.setdefault('selections', '')
+    session.setdefault('summary', '')
     session.setdefault('turn_count', 0)
     session.setdefault('rejection_count', 0)
     session.setdefault('fatigue', 0)
     session.setdefault('intervention_count', 0)
     session.setdefault('condition_added', False)
     session.setdefault('high_involvement', False)
+    # ★ 세션 ID (맥락 저장소 키)
+    import uuid
+    session.setdefault('_sid', str(uuid.uuid4())[:8])
     return session
 
 
@@ -454,6 +359,8 @@ def normalize_query(raw_text: str) -> str:
 예시:
 코너형 패브릭 소파 → 소파 | 형태=코너형 | 소재=패브릭
 4인용 방수 패브릭 소파 → 소파 | 소재=패브릭 | 인원수=4인용 | 패브릭기능=방수
+6인용 원목 패브릭 소파 → 소파 | 소재=패브릭 | 인원수=6인용 | 다리소재=우드
+(주의: 6인용은 반드시 6인용으로만 출력, 절대 6인용이상으로 변환하지 말것)
 헤드있는 싱글 침대 → 침대 | 사이즈=싱글 | 헤드유무=헤드있음
 싱글 침대 다리 스틸 → 침대 | 사이즈=싱글 | 다리소재=스틸
 퀸 침대 다리 스틸 매트리스 딱딱한걸로 → 침대 | 사이즈=퀸 | 다리소재=스틸 | 매트리스강도=딱딱함
@@ -487,11 +394,9 @@ def normalize_query(raw_text: str) -> str:
 
 def _apply_vs_checked(board_text, checked):
     """VS에서 수집된 값들을 상황판에 CHECKED로 반영"""
+    import re
     for key, val in checked.items():
-        if key == '소재':
-            continue  # context로 이미 처리
-        # 옵션에 CHECKED 표시
-        import re
+        # 옵션에 CHECKED 표시 (소재 포함!)
         board_text = re.sub(
             rf'\b{re.escape(val)}\b(?! CHECKED)',
             f'{val} CHECKED:{val}',
@@ -521,6 +426,51 @@ def make_board_new(raw_text, session=None):
             'type': 'brand_ask',
             'text': route_result.get('message', '어떤 제품 찾으세요? 😊')
         }
+
+    # 브랜드 + 카테고리 → 제품 목록 버튼
+    if zone == 'brand_products':
+        import urllib.request, urllib.parse, json as _j, re as _re
+        naver_id = os.environ.get('NAVER_CLIENT_ID', '')
+        naver_secret = os.environ.get('NAVER_CLIENT_SECRET', '')
+        search_q = f'{brand} {product}'
+        enc = urllib.parse.quote(search_q)
+        url = f'https://openapi.naver.com/v1/search/shop.json?query={enc}&display=10&filter=1'
+        req = urllib.request.Request(url, headers={
+            'X-Naver-Client-Id': naver_id,
+            'X-Naver-Client-Secret': naver_secret,
+        })
+        try:
+            res = urllib.request.urlopen(req, timeout=5)
+            items_raw = _j.loads(res.read()).get('items', [])
+            seen = set()
+            prod_list = []
+            for item in items_raw:
+                title = _re.sub(r'<[^>]+>', '', item.get('title', ''))
+                short = ' '.join(title.split()[:4])
+                if short not in seen:
+                    seen.add(short)
+                    prod_list.append({
+                        'name': short,
+                        'full_name': title,
+                        'image': item.get('image', ''),
+                        'link': item.get('link', ''),
+                        'price': item.get('lprice', ''),
+                    })
+            print(f'[브랜드제품목록] {search_q} → {len(prod_list)}개')
+            if prod_list:
+                return {
+                    'type': 'brand_products',
+                    'brand': brand,
+                    'category': product,
+                    'products': prod_list[:6],
+                    'text': f'{brand} {product} 제품 목록이에요 😊 원하시는 제품을 선택해주세요!',
+                }
+        except Exception as e:
+            print(f'[브랜드제품목록오류] {e}')
+        # 실패 시 일반 상황판
+        from situation_layer.boards.board_llm import get_board as llm_b
+        board_text = llm_b(product=f'{brand} {product}')
+        return {'type': 'board', 'text': board_text}
 
     # 가구 대분류 → 카테고리 선택
     if zone == 'furniture_category':
@@ -718,9 +668,10 @@ def make_summary(product_name, selections, raw_product, constraint_keys=None, pr
         type_parts.append(product_type)
     type_hint = f'\n※ 소재/유형: {", ".join(type_parts)} (반드시 요약에 포함)' if type_parts else ''
 
-    # 제약 안내 생성
+    # 제약 안내 생성 - 임시 비활성화 (토큰 절약)
+    # 나중에 구체적으로 수정할 때 다시 활성화!
     constraint_notice = ''
-    if constraint_keys:
+    if False and constraint_keys:  # ← False로 비활성화
         hints = {
             'C3_health': '안전/건강/인증',
             'C4_legal':  '기내 반입 규정/무게/사이즈',
@@ -788,73 +739,11 @@ def make_summary(product_name, selections, raw_product, constraint_keys=None, pr
 # ===============================
 # 3단계: 리뷰 역추적 + Top 3 추천
 # ===============================
-def make_recommendation(product_name, selections, extra='', session=None):
-    """제약 감지 + 리뷰 역추적 + Top 3"""
-    keyword = product_name + ' ' + selections
-    if extra:
-        keyword += ' ' + extra
 
-    # 제약 감지 (2단계)
-    sel_scores = sensor_layer(selections, session or {})
-    step2_interventions = sel_scores.get('constraint_interventions', [])
-
-    # 1단계 + 2단계 합산
-    step1_keys = session.get('step1_constraints', [])
-    step2_keys = [c['constraint'] for c in step2_interventions]
-    all_keys = list(set(step1_keys + step2_keys))
-
-    # 합산 제약 힌트 생성
-    all_interventions = [{'constraint': k} for k in all_keys]
-    constraint_hint = get_constraint_hint(all_interventions)
-
-    # 리뷰 역추적
-    collector = CollectorManager()
-    reviews   = collector.collect_all(keyword, count_per_source=5)
-    engine    = ReviewEngine()
-    analysis  = engine.analyze(reviews, keyword)
-
-    # 제약 안내 LLM 생성 (있을 경우)
-    constraint_notice = ''
-    if constraint_hint:
-        notice_prompt = f"""
-사용자가 "{selections}" 조건으로 {product_name}을 찾고 있어요.
-{constraint_hint}
-
-딱 2줄만 출력하세요.
-1줄: 이모지 + 제약 관련 핵심 주의사항 (구체적인 수치/기준 포함)
-2줄: 이 점 확인하고 구매하시면 좋아요!
-
-예시 (기내용):
-✈️ 항공사마다 기내 반입 기준이 달라요. 보통 55x40x20cm, 10kg 이하예요.
-이 사이즈 초과하면 위탁수하물 추가 비용이 발생할 수 있어요!
-
-예시 (아기):
-🔰 아기 제품은 KC 인증 여부와 모서리 안전 처리를 꼭 확인하세요.
-무독성 소재인지도 확인하시면 더 안전해요!
-"""
-        constraint_notice = call_llm(notice_prompt, max_tokens=400).strip()
-
-    prompt = f"""
-사용자 조건: {selections}
-{f"추가 요청: {extra}" if extra else ""}
-찾는 제품: {product_name}
-
-리뷰 역추적:
-만족: {analysis.get('satisfied', [])}
-아쉬움: {analysis.get('disappointed', [])}
-점수: {analysis.get('total_score', 0)}
-
-위 조건에 맞는 제품 Top 3 추천해주세요.
-각 제품: 이름 / 가격 / 특징 1줄 / 리뷰 근거
-광고 금지, 실제 리뷰 기반으로만
-"""
-    result = call_llm(prompt, system=SYSTEM_RULES)
-
-    # 제약 안내 앞에 붙이기
-    if constraint_notice:
-        return constraint_notice + "\n\n" + result
-    return result
-
+# ── recommendation.py로 분리 ──
+from recommendation import (
+    make_recommendation,
+)
 
 def add_dynamic_options(board_text: str, extra_text: str, product: str, skip_categories: set = None) -> str:
     """
@@ -1017,7 +906,15 @@ def _search_worry_info(worry_text: str, product_name: str, mentioned_items: list
 3. 단순 선호도/감정 → NONE
 4. 이미 언급된 항목만 묻는 것 → NONE
 
-웹검색 필요하면: 검색쿼리 한 줄만 출력 (한국어, 구체적, 이미 언급된 항목 제외)
+웹검색 필요하면: 검색쿼리 한 줄만 출력
+
+검색쿼리 작성 규칙:
+- 소재+제품명+핵심조건 1~2개 순서로 짧게
+- "프레임" 단어 절대 금지 → "원목 소파"처럼
+- 조건은 2~3개 이내
+- 예시: 패브릭 소파 방수 내돈내산 후기
+- 예시: 여닫이 옷장 솔직 리뷰
+
 불필요하면: NONE"""
 
     query = call_llm(search_prompt, max_tokens=60).strip()
@@ -1026,89 +923,84 @@ def _search_worry_info(worry_text: str, product_name: str, mentioned_items: list
 
     print(f'[웹검색] 쿼리: {query}')
 
-    try:
-        headers = {
-            'Content-Type': 'application/json',
-            'x-api-key': ANTHROPIC_API_KEY,
-            'anthropic-version': '2023-06-01'
-        }
-        body = json.dumps({
-            'model': 'claude-haiku-4-5-20251001',
-            'max_tokens': 500,
-            'tools': [{'type': 'web_search_20250305', 'name': 'web_search'}],
-            'system': '검색 결과를 간결하게 3~4줄로 요약하세요. 한국어로.',
-            'messages': [{'role': 'user', 'content': query}]
-        }).encode()
-        req = urllib.request.Request(
-            'https://api.anthropic.com/v1/messages',
-            data=body, headers=headers, method='POST'
-        )
-        res = urllib.request.urlopen(req, timeout=8)
-        data = json.loads(res.read())
+    DOMAIN_NAMES = {
+        'mypetlife.co.kr': '비마이펫',
+        'naver.com': '네이버',
+        'blog.naver.com': '네이버 블로그',
+        'coupang.com': '쿠팡',
+        'ohou.se': '오늘의집',
+        'ikea.com': '이케아',
+        'samsung.com': '삼성',
+        'lg.com': 'LG',
+        'gmarket.co.kr': 'G마켓',
+        'musinsa.com': '무신사',
+        'brunch.co.kr': '브런치',
+    }
 
-        # domain → 한국어 사이트명 매핑
-        DOMAIN_NAMES = {
-            'mypetlife.co.kr': '비마이펫',
-            'woowarhanclean.com': '우아한정리',
-            'naver.com': '네이버',
-            'blog.naver.com': '네이버 블로그',
-            'coupang.com': '쿠팡',
-            'ohou.se': '오늘의집',
-            'ikea.com': '이케아',
-            'samsung.com': '삼성',
-            'lg.com': 'LG',
-            '11st.co.kr': '11번가',
-            'gmarket.co.kr': 'G마켓',
-            'auction.co.kr': '옥션',
-            'zigzag.kr': '지그재그',
-            'musinsa.com': '무신사',
-            'apure.kr': '에이퓨어',
-            'brunch.co.kr': '브런치',
-        }
+    for attempt in range(2):  # 실패 시 1회 재시도
+        try:
+            headers = {
+                'Content-Type': 'application/json',
+                'x-api-key': ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01'
+            }
+            body = json.dumps({
+                'model': 'claude-haiku-4-5-20251001',
+                'max_tokens': 500,
+                'tools': [{'type': 'web_search_20250305', 'name': 'web_search'}],
+                'system': '검색 결과를 간결하게 3~4줄로 요약하세요. 한국어로.',
+                'messages': [{'role': 'user', 'content': query}]
+            }).encode()
+            req = urllib.request.Request(
+                'https://api.anthropic.com/v1/messages',
+                data=body, headers=headers, method='POST'
+            )
+            res = urllib.request.urlopen(req, timeout=25)
+            data = json.loads(res.read())
 
-        # 텍스트 + 출처 URL 추출
-        texts = []
-        sources = []  # {name, url} 딕셔너리 리스트
-        for block in data.get('content', []):
-            if block.get('type') == 'text':
-                texts.append(block['text'])
-                for citation in block.get('citations', []):
-                    url = citation.get('url', '')
-                    if url and url.startswith('http'):
-                        try:
-                            domain = url.split('/')[2]
-                            domain = domain.replace('www.', '')
-                            if any(s['domain'] == domain for s in sources):
-                                continue
-                            # 알려진 도메인이면 한국어명, 모르면 도메인에서 추출
-                            if domain in DOMAIN_NAMES:
-                                name = DOMAIN_NAMES[domain]
-                            else:
-                                # 도메인에서 사이트명 자동 추출
-                                parts = domain.split('.')
-                                raw_name = parts[0] if parts[0] not in ['m', 'www', 'blog', 'store', 'shop', 'post'] else parts[1] if len(parts) > 1 else domain
-                                # 너무 길거나 의미없는 이름 → 도메인 축약
-                                if len(raw_name) > 12:
-                                    raw_name = raw_name[:10] + '...'
-                                name = raw_name
-                            sources.append({'name': name, 'url': url, 'domain': domain})
-                        except:
-                            pass
+            # 텍스트 + 출처 URL 추출
+            texts = []
+            sources = []
+            for block in data.get('content', []):
+                if block.get('type') == 'text':
+                    texts.append(block['text'])
+                    for citation in block.get('citations', []):
+                        url = citation.get('url', '')
+                        # 게시글 URL만 허용 (홈 URL 제외)
+                        # 홈: blog.naver.com/xxx (/ 2개)
+                        # 게시글: blog.naver.com/xxx/12345 (/ 3개 이상)
+                        if url and url.startswith('http') and url.count('/') >= 3:
+                            try:
+                                domain = url.split('/')[2].replace('www.', '')
+                                if any(s['domain'] == domain for s in sources):
+                                    continue
+                                if domain in DOMAIN_NAMES:
+                                    name = DOMAIN_NAMES[domain]
+                                else:
+                                    parts = domain.split('.')
+                                    raw_name = parts[0] if parts[0] not in ['m', 'www', 'blog', 'store', 'shop', 'post'] else parts[1] if len(parts) > 1 else domain
+                                    name = raw_name[:10] + '...' if len(raw_name) > 12 else raw_name
+                                sources.append({'name': name, 'url': url, 'domain': domain})
+                            except:
+                                pass
 
-        result = ' '.join(texts).strip()
+            result = ' '.join(texts).strip()
 
-        # 출처 붙이기 - LINK 형식으로 (app.js에서 파싱)
-        if sources:
-            source_str = '|'.join([f"{s['name']}::{s['url']}" for s in sources[:2]])
-            result += f'\n\n📌SOURCE::{source_str}'
-        else:
-            result += '\n\n📌SOURCE::웹검색기반::https://www.google.com'
+            if sources:
+                source_str = '|'.join([f"{s['name']}::{s['url']}" for s in sources[:2]])
+                result += f'\n\n📌SOURCE::{source_str}'
+            else:
+                result += '\n\n📌SOURCE::웹검색기반::https://www.google.com'
 
-        print(f'[웹검색 결과] {result[:80]}...')
-        return result
-    except Exception as e:
-        print(f'[웹검색 오류] {e}')
-        return ''
+            print(f'[웹검색 결과] {result[:80]}...')
+            return result
+
+        except Exception as e:
+            print(f'[웹검색 오류] attempt={attempt+1} {e}')
+            if attempt == 0:
+                import time as _time
+                _time.sleep(2)
+    return ''
 
 
 def _extract_worry_selected(worry_text: str, product: str) -> dict:
@@ -1154,6 +1046,15 @@ def _extract_worry_selected(worry_text: str, product: str) -> dict:
 # ===============================
 def decision_engine(user_input, session=None):
     session  = _init_session(session)
+
+    # DIRECT_RECOMMEND: 브랜드 제품 선택 → 바로 픽코3
+    if isinstance(user_input, str) and user_input.startswith('DIRECT_RECOMMEND:'):
+        product_name = user_input.replace('DIRECT_RECOMMEND:', '').strip()
+        session['raw_product'] = product_name
+        session['stage'] = 'selected'
+        session['single_product'] = True
+        result = make_recommendation(product_name, '', '', session)
+        return result
 
     # ADD_ITEM은 ocr_layer 전에 먼저 처리 (콜론 제거 방지)
     if isinstance(user_input, str) and user_input.startswith('ADD_ITEM:') and session.get('stage') == 'anti_confirm':
@@ -1348,7 +1249,7 @@ def decision_engine(user_input, session=None):
                     new_section = f'[{group_name}]\n{opts_str}'
                     board_text = board_text.replace('[E 직접입력]', new_section + '\n\n[E 직접입력]')
             session['stage'] = 'board_shown'
-            session['extra_board_sections'] = {}
+            # extra_board_sections 유지! (context_wait에서도 사용)
             return board_text
         # 더 물어볼게요 → anti_dialog로 복귀
         if any(w in raw_text for w in ['더 물어볼게요', '더 물어', '궁금한게']):
@@ -1514,7 +1415,7 @@ def decision_engine(user_input, session=None):
 - 2~3줄로 간결하게 답변
 - 마지막 줄에 반드시 BOARD_READY 출력
 """
-        response = call_llm(prompt, system=ANTI_SYSTEM_RULES, max_tokens=200)
+        response = call_llm(prompt, system=ANTI_SYSTEM_RULES, max_tokens=200, use_sonnet=True)
 
         # BOARD_READY 감지 → 상황판 출력
         if 'BOARD_READY' in response:
@@ -1640,13 +1541,12 @@ def decision_engine(user_input, session=None):
         prev_context = session.get('context', '')
         session['context'] = raw_text
 
-        # 큰 카테고리 변경 → 이전 세부정보 초기화 (범용)
-        # 예: 원목 대화 중 세라믹 선택 → product_type, extra_board_sections 리셋
+        # 큰 카테고리 변경 → product_type만 초기화 (extra_board_sections 유지!)
         if prev_context and prev_context != raw_text:
             print(f'[카테고리변경] {prev_context} → {raw_text} / 세부정보 초기화')
             session['product_type'] = None
-            session['extra_board_sections'] = {}
             session['mentioned_items'] = []
+            # extra_board_sections는 유지! (원목종류 등 사용자 선택 보존)
 
         if _NEW_ROUTER_ENABLED:
             try:
@@ -1660,9 +1560,31 @@ def decision_engine(user_input, session=None):
                 # VS에서 소재 선택한 경우 → choice로 전달 (소재 선택 단계 스킵!)
                 vs_material = session.get('vs_material', '')
                 auto_selected = session.get('auto_selected', {})
+
+                # 핵심: 이전 제품 auto_selected가 오염되지 않도록
+                # 현재 제품과 다른 제품의 auto_selected면 무조건 초기화!
+                prev_board_product = session.get('prev_board_product', '')
+                if prev_board_product != clean_product:
+                    auto_selected = {}
+                    session['auto_selected'] = {}
+                    print(f'[auto_selected초기화] {prev_board_product} → {clean_product}')
+                session['prev_board_product'] = clean_product
+
                 choice = vs_material if vs_material else auto_selected
                 board_text = _get_new_board(clean_product, context=raw_text, choice=choice)
                 print(f'[context_wait board] {str(board_text)[:60]}')
+
+                # VS 소재 선택한 경우 → board_text에 강제 CHECKED 적용
+                if vs_material and board_text and not board_text.startswith('CONTEXT_SELECT:'):
+                    import re as _re2
+                    # 소재값이 board_text에 있으면 CHECKED 추가
+                    if vs_material in board_text and f'CHECKED:{vs_material}' not in board_text:
+                        board_text = _re2.sub(
+                            rf'\b{_re2.escape(vs_material)}\b(?! CHECKED)',
+                            f'{vs_material} CHECKED:{vs_material}',
+                            board_text
+                        )
+                        print(f'[VS소재CHECKED] {vs_material} 적용')
 
                 # CONTEXT_SELECT면 계속 선택 진행
                 if board_text and board_text.startswith('CONTEXT_SELECT:'):
@@ -1670,6 +1592,13 @@ def decision_engine(user_input, session=None):
 
                 # 상황판 나오면 완료
                 if board_text and not board_text.startswith('CONTEXT_SELECT:'):
+                    # extra_board_sections 복원!
+                    extra_sections = session.get('extra_board_sections', {})
+                    for group_name, opts_str in extra_sections.items():
+                        if f'[{group_name}]' not in board_text and '[E 직접입력]' in board_text:
+                            new_section = f'[{group_name}]\n{opts_str}'
+                            board_text = board_text.replace('[E 직접입력]', new_section + '\n\n[E 직접입력]')
+                            print(f'[extra_sections 복원] {group_name}')
                     session['stage'] = 'board_shown'
                     return board_text
             except Exception as e:
@@ -1679,9 +1608,8 @@ def decision_engine(user_input, session=None):
         session['stage'] = 'board_shown'
         return board_result['text']
 
-    # ── VS 결과에서 사용자가 소파 선택 → 상황판 진입 ──
     # ── VS 선택: 사용자가 카드 보고 제품 선택 → 기존 상황판 흐름 ──
-    if stage == 'vs_cards' and raw_text.startswith('VS_SELECT:'):
+    if raw_text.startswith('VS_SELECT:') and stage in ['vs_cards', 'context_wait', None]:
         selected_product = raw_text.replace('VS_SELECT:', '').strip()
         print(f'[VS선택] product={selected_product}')
 
@@ -1697,13 +1625,29 @@ def decision_engine(user_input, session=None):
         vs_size = norm_selected.get('인원수', '')
 
         if vs_material:
-            session['vs_material'] = vs_material  # 소재 별도 보관
+            session['vs_material'] = vs_material
+            # 기존 소재 context도 교체!
+            old_selected = session.get('selected', {})
+            old_selected['소재'] = vs_material
+            session['selected'] = old_selected
+            print(f'[VS소재교체] 소재 → {vs_material}')
         if vs_size:
-            session['context'] = vs_size  # 인원수 있으면 context로
+            session['context'] = vs_size
 
         # 기존 살까말까 상황판 흐름
         board_result = make_board(board_product, session)
         board_text = board_result.get('text', '')
+
+        # VS 소재 선택 → board_text에 CHECKED 강제 적용
+        if vs_material and board_text:
+            import re as _re3
+            if vs_material in board_text and f'CHECKED:{vs_material}' not in board_text:
+                board_text = _re3.sub(
+                    rf'\b{_re3.escape(vs_material)}\b(?! CHECKED)',
+                    f'{vs_material} CHECKED:{vs_material}',
+                    board_text
+                )
+                print(f'[VS보드CHECKED] {vs_material} 적용')
 
         # context_select (인원수) 나오면 → context_wait
         if board_result.get('type') == 'context_select':
@@ -1737,18 +1681,152 @@ def decision_engine(user_input, session=None):
         return result
 
     # ── 2단계: 확인 버튼 응답 처리 ──
+    # ── 욕망 스토리보드 stage ──
+    if stage == 'desire_board':
+        desire_keyword = session.get('desire_keyword', session.get('raw_product', '소파'))
+
+        # 자동 추가 (삭제 후 자동 호출)
+        if raw_text.startswith('DESIRE_AUTO_ADD:') or '자동추가' in raw_text:
+            import re as _re
+            num_match = _re.search(r'(\d+)', raw_text)
+            add_count = int(num_match.group(1)) if num_match else 1
+            existing = session.get('desire_images', [])
+            existing_urls = {img['url'] for img in existing}
+            new_images = search_naver_images(desire_keyword, limit=add_count * 3)
+            added = []
+            for img in new_images:
+                if img['url'] not in existing_urls and len(added) < add_count:
+                    img['style'] = '추가'
+                    added.append(img)
+            if added:
+                import json as _json
+                session['desire_images'] = existing + added
+                return f'DESIRE_BOARD_ADD:{_json.dumps(added, ensure_ascii=False)}'
+            return 'DESIRE_BOARD_ADD:[]'
+
+        # 6장 채우기 버튼
+        if '채우기' in raw_text or '더 찾기' in raw_text:
+            import re as _re
+            num_match = _re.search(r'(\d+)', raw_text)
+            add_count = int(num_match.group(1)) if num_match else 1
+            existing = session.get('desire_images', [])
+            existing_urls = {img['url'] for img in existing}
+            new_images = search_naver_images(desire_keyword, limit=add_count * 3)
+            added = []
+            for img in new_images:
+                if img['url'] not in existing_urls and len(added) < add_count:
+                    img['style'] = '추가'
+                    added.append(img)
+            if added:
+                import json as _json
+                session['desire_images'] = existing + added
+                return f'DESIRE_BOARD_ADD:{_json.dumps(added, ensure_ascii=False)}'
+            return 'DESIRE_BOARD_ADD:[]'
+
+        # 선택 완료 → 제품 검색
+        if 'DESIRE_SELECT:' in raw_text:
+            session['stage'] = 'selected'
+            import json as _json
+            desire_raw = raw_text.replace('DESIRE_SELECT:', '').strip()
+
+            # query + 태그 추출 (이미지 검색어 + 욕망보드 태그)
+            try:
+                selected_imgs = _json.loads(desire_raw)
+                # ★ 문자열 아이템 건너뜀 (add_xxx 형식)
+                selected_imgs = [img for img in selected_imgs if isinstance(img, dict)]
+                queries = [img.get('query', '') for img in selected_imgs if img.get('query')]
+                styles = [img.get('style', '') for img in selected_imgs if img.get('style')]
+                img_query = ' '.join(queries[:1]) if queries else ' '.join(styles[:1])
+                # 욕망보드 태그 수집 (로또 번호!)
+                desire_tags = []
+                for img in selected_imgs:
+                    tags = img.get('tags', [])
+                    for t in tags:
+                        if t not in desire_tags:
+                            desire_tags.append(t)
+                desire_tags = desire_tags[:4]
+                # ★ 선택된 이미지 URL 저장 (카드1 썸네일용!)
+                desire_selected_url = selected_imgs[0].get('url', '') if selected_imgs else ''
+                session['desire_selected_url'] = desire_selected_url
+            except:
+                img_query = desire_raw
+                desire_tags = []
+                desire_selected_url = ''
+
+            # 상황판 조건 파싱 → 핵심 키워드 추출
+            # initial_selected + selections 합쳐서 완전한 조건!
+            _i_sel = session.get('initial_selected', {})
+            _i_str = ' '.join([f'{k}:{v}' for k,v in _i_sel.items()])
+            selections = session.get('selections', '')
+            _full_selections = f'{_i_str} {selections}'.strip()
+            sel_keywords = []
+            price_keyword = ''
+            COLOR_MAP = {'밝은톤': '베이지', '중간톤': '그레이', '어두운톤': '차콜'}
+            PRICE_MAP = {'저가': '저가', '중가': '중가', '고가': '고가', '프리미엄': '프리미엄'}
+            PRIORITY_KEYS = ['인원수', '소재', '사이즈']
+            priority_keywords = []
+            normal_keywords = []
+            for part in _full_selections.split():
+                if ':' in part:
+                    k, v = part.split(':', 1)
+                    if k == '가격' and v in PRICE_MAP:
+                        price_keyword = v
+                        continue
+                    val = COLOR_MAP.get(v, v)
+                    if val not in ['저가', '중가', '고가', '프리미엄', '가능', '불가능']:
+                        if k in PRIORITY_KEYS:
+                            priority_keywords.append(val)
+                        else:
+                            normal_keywords.append(val)
+            # 인원수/소재 우선!
+            sel_keywords = priority_keywords + normal_keywords
+
+            # 이미지 query + 상황판 + 욕망보드 태그 결합!
+            combined_parts = [img_query] + sel_keywords[:2] + desire_tags[:2]
+            combined = ' '.join([p for p in combined_parts if p]).strip()
+            print(f'[DESIRE_SELECT] query: {img_query}')
+            print(f'[DESIRE_SELECT] 상황판조건: {sel_keywords}')
+            print(f'[DESIRE_SELECT] 욕망태그: {desire_tags}')
+            print(f'[DESIRE_SELECT] 최종검색어: {combined}')
+
+            return make_recommendation(
+                session.get('product_name', ''),
+                selections,
+                extra=combined,
+                session=session
+            )
+
     if stage == 'confirm':
         # 이미지로 스타일 골라볼게요 → 욕망 스토리보드
         if '이미지로 스타일' in raw_text or '이미지로' in raw_text:
             raw_product = session.get('raw_product', '')
             material = session.get('vs_material', '')
-            sofa_keyword = f'{material} 소파' if material else '소파'
-            desire_images = search_desire_board_images(sofa_keyword)
+            if material:
+                desire_keyword = f'{material} {raw_product}'
+            else:
+                desire_keyword = raw_product or '소파'
+            print(f'[욕망보드] 키워드: {desire_keyword}')
+
+            # 캐시에서 먼저 확인!
+            _sid = session.get('_desire_sid', '')
+            cached = _DESIRE_CACHE.get(_sid, {})
+            if cached.get('status') == 'done' and cached.get('images'):
+                print(f'[욕망보드] 캐시 히트! {len(cached["images"])}장')
+                desire_images = cached['images']
+                _DESIRE_CACHE.pop(_sid, None)
+            else:
+                # 캐시 없으면 직접 검색
+                # initial_selected + selections 합쳐서 전달 (3인용/패브릭 보존!)
+                _i_sel = session.get('initial_selected', {})
+                _i_str = ' '.join([f'{k}:{v}' for k,v in _i_sel.items()])
+                _full_sel = f'{_i_str} {session.get("selections", "")}'.strip()
+                desire_images = search_desire_board_images(desire_keyword, selections=_full_sel)
             if desire_images:
                 import json as _json
                 images_json = _json.dumps(desire_images, ensure_ascii=False)
                 session['stage'] = 'desire_board'
                 session['desire_images'] = desire_images
+                session['desire_keyword'] = desire_keyword  # 추가용 저장
                 return f'DESIRE_BOARD:{images_json}'
             else:
                 return "이미지를 불러오는 중 문제가 생겼어요. 다시 시도해주세요 😊"
@@ -1808,48 +1886,150 @@ def decision_engine(user_input, session=None):
 
     # ── 1.5단계: 상황판 선택 완료 → 욕망 스토리보드 (소파만) ──
     if stage == 'board_shown':
+        # selections 형식인지 체크: key:value 패턴 (형태:직선형 색상:베이지 ...)
+        import re as _re_board
+        is_selection = bool(_re_board.search(r'[가-힣a-zA-Z0-9]+:[가-힣a-zA-Z0-9~\-\.]+', raw_text))
+        if not is_selection:
+            # 일반 텍스트 → LLM이 의도 판단
+            last_board = session.get('last_board_text', '')
+            product_name = session.get('raw_product', session.get('product_name', ''))
+            intent_prompt = f"""사용자가 [{product_name}] 상황판을 보는 중에 입력했습니다.
 
-        # 소파인지 확인 → 욕망 스토리보드 발동
-        raw_product = session.get('raw_product', '')
-        is_sofa = any(kw in raw_product for kw in ['소파', 'sofa'])
+현재 상황판:
+{last_board[:300]}
 
-        if is_sofa:
-            # 소재만 추출 (인원수 무시)
-            material = session.get('vs_material', '')
-            sofa_keyword = f'{material} 소파' if material else '소파'
+사용자 입력: "{raw_text}"
 
-            # 욕망 스토리보드 이미지 검색
-            desire_images = search_desire_board_images(sofa_keyword)
+아래 중 하나만 출력하세요 (다른 텍스트 없이):
+NEW_SEARCH     → 다른 제품 검색, 처음부터 다시, 현재 제품과 다른 카테고리 검색
+               예) "침대 찾아줘" "소파 말고 의자" "처음부터" "다시"
+BOARD_QUESTION → 현재 상황판 관련 질문, 조건 문의, 대화
+               예) 방수 잘 되나요 / 이 가격대 괜찮아? / 어떤 게 좋아"""
+            intent = call_llm(intent_prompt, max_tokens=20).strip()
+            print(f'[board_shown] 의도판단={intent} 입력={raw_text[:30]}')
 
-            if desire_images:
-                import json as _json
-                images_json = _json.dumps(desire_images, ensure_ascii=False)
-                session['stage'] = 'desire_board'
-                session['desire_images'] = desire_images
-                return f'DESIRE_BOARD:{images_json}'
+            if intent == 'NEW_SEARCH':
+                # 새 검색 → 제품 관련 세션 초기화 (소재/인원수 등 잔류 방지)
+                for key in ['stage', 'product_name', 'raw_product', 'selections',
+                            'summary', 'context', 'last_board_text', 'is_desire_product',
+                            'step1_constraints', 'product_type', 'vs_material']:
+                    session.pop(key, None)
+                # 실제 제품명 없는 메타 표현이면 안내 메시지 반환
+                META_PHRASES = ['처음', '다시', '새로', '취소', '그만', '리셋', '초기화', '다른 거', '바꿔']
+                is_meta = any(p in raw_text for p in META_PHRASES)
+                if is_meta:
+                    return "새로 찾아드릴게요! 😊\n아래 입력창에 찾으시는 제품을 입력해주세요 🔍\nINPUT_HINT:찾으시는 제품을 입력해주세요 (예: 4인용 패브릭 소파)"
 
-        # 소파 아니면 기존 흐름
-        session['stage'] = 'confirm'
-        session['selections'] = raw_text
+            else:  # BOARD_QUESTION - 조건 수정/질문/대화 전부
+                board_text = session.get('last_board_text', '')
 
-        # 1단계 + 현재 제약 합산
-        step1_keys = session.get('step1_constraints', [])
-        cur_scores = sensor_layer(raw_text, session)
-        cur_keys = [c['constraint'] for c in cur_scores.get('constraint_interventions', [])]
-        all_keys = list(set(step1_keys + cur_keys))
+                # ── 센서 측정 → 톤 조절 (rule 주입 아님!) ──
+                from sensor_layer import sensor_layer as _sl
+                scores = _sl(raw_text, session)
+                As       = scores.get('As', 0)
+                conflict = scores.get('Conflict', 0)
+                drive    = scores.get('Drive', {}).get('dominant', 'unknown')
+                print(f'[BOARD_QUESTION 센서] As={As} Conflict={conflict} Drive={drive}')
 
-        summary = make_summary(
-            session.get('product_name', ''),
-            raw_text,
-            session.get('raw_product', ''),
-            constraint_keys=all_keys,
-            product_type=session.get('product_type'),
-            context=session.get('context', '')
-        )
-        session['summary'] = summary
+                # 수치 기반 톤만 조절
+                top_axes = [a[0] for a in scores.get('top_axes', [])]
+                has_safety = 'C1_safety' in top_axes
 
-        # 확인 버튼 3개 포함
-        return f"{summary}\n\nCONFIRM_BUTTONS"
+                if As >= 0.7:
+                    tone = "지금 당장 결정 안 하셔도 된다고 부드럽게 공감하세요. 절대 서두르지 마세요."
+                elif As >= 0.45:
+                    tone = "고민되는 부분에 공감하고, 실제 정보로 핵심 걱정을 해소하세요."
+                elif has_safety:
+                    tone = "안전 걱정에 진심으로 공감하고, 실제 소재/구조 정보로 구체적으로 안심시키세요. 상황판 언급 금지. 필요하면 더 안전한 대안 소재도 제안하세요."
+                elif conflict >= 2:
+                    tone = "핵심 걱정에 공감하고, 실제 정보로 구체적으로 안심시키세요. 상황판 떠넘기기 금지."
+                elif drive == 'Psi':
+                    tone = "감성적으로 공감하며 따뜻하게 답변하세요."
+                elif drive == 'N':
+                    tone = "기능/스펙 중심으로 명확하게 답변하세요."
+                # 유머/재미있는 상황 감지
+                HUMOR_SIGNALS = ['남편', '아내', '와이프', '남친', '여친', '엄마', '아빠', '할머니', '할아버지', '우리집', 'ㅋㅋ', '휴~~~', '어떡해']
+                has_humor = any(kw in raw_text for kw in HUMOR_SIGNALS) and As < 0.4
+                if has_humor:
+                    tone = "재미있는 상황에 같이 웃으면서 공감하고, 자연스럽게 제품 특성으로 연결하세요. 억지 웃음 금지, 자연스럽게!"
+                else:
+                    tone = "친절하고 자연스럽게 답변하세요." 
+                qa_prompt = f"""사용자가 [{product_name}] 상황판을 보는 중에 말했어요.
+입력: "{raw_text}"
+
+[답변 톤] {tone}
+
+[좋은 답변 예시 - 이 스타일로 답변하세요]
+Q: 아이 있는데 깨지면 다칠 것 같아 걱정돼요
+A: 아이 안전 걱정 충분히 이해돼요 💛 세라믹은 깨져도 날카로운 파편보다 뭉툭하게 부서지는 편이에요. 그래도 완전히 안심되시려면 통원목이나 MDF 소재가 깨질 위험 자체가 없어서 더 안전해요 😊
+
+Q: 너무 비싼 것 같아요 이 가격이면 살 만한가요?
+A: 가격 부담 느껴지시는 거 당연해요! 소파는 10년 이상 쓰는 제품이라 하루 환산하면 몇백 원 수준이에요 😊 그래도 예산이 부담되시면 더 저렴한 가격대에서 다시 찾아드릴 수 있어요!
+
+Q: 살까 말까 너무 고민돼요
+A: 지금 당장 결정 안 하셔도 전혀 괜찮아요 😊 어떤 부분이 제일 마음에 걸리세요? 가격인지, 내구성인지 말씀해주시면 그 부분 집중해서 도와드릴게요!
+
+Q: 가죽이 좋을까요 패브릭이 좋을까요?
+A: 둘 다 장단점이 있어요! 가죽은 관리 편하고 고급스럽지만 여름에 달라붙고, 패브릭은 포근하고 통기성 좋지만 오염에 약해요 😊 반려동물이나 아이 있으시면 방수 기능성 패브릭 추천드려요!
+
+Q: 남편이 소파에 누우면 안 일어나요 (가족/지인의 재미있는 상황)
+A: ㅋㅋ 그럼 더 튼튼하고 복원력 좋은 소파가 필요하겠네요 😄 매일 눕는 분이 계시면 고밀도 폼이나 스프링 쿠션 소파가 오래가요 💪
+→ 핵심: 가족/지인 관련 재미있는 상황은 같이 웃으면서 자연스럽게 제품 특성으로 연결
+
+Q: 사진이랑 실물 색상이 다를 수 있나요?
+A: 맞아요, 촬영 조명이나 모니터 설정에 따라 달라 보일 수 있어요! 걱정되시면 구매 전 샘플 요청이나 교환 정책 확인해두시면 안심이 돼요 😊
+
+Q: 강아지 고양이 아이까지 있는데 패브릭 괜찮을까요?
+A: 삼중 콤보시네요 ㅋㅋ 💛 이런 경우엔 방수+스크래치방지 기능성 패브릭이 딱이에요! 요즘 고기능 패브릭은 물티슈로 바로 닦이고 털도 잘 안 달라붙어요. 그래도 걱정되시면 인조가죽도 좋은 선택이에요 😊
+
+Q: 세라믹 식탁 얼마나 튼튼한가요?
+A: 세라믹은 고온 소성 공정으로 만들어져서 일반 도자기보다 훨씬 단단해요 💪 일상적인 사용에선 흠집도 잘 안 나고 열에도 강해요. 다만 모서리 강한 충격엔 약할 수 있으니 참고하세요!
+
+[규칙]
+- 위 예시처럼 2~3줄로 자연스럽게 답변
+- 상황판 새로 만들기 절대 금지
+- 조건 변경 요청이면: 공감 1줄 + "처음부터 다시 찾아드릴 수도 있어요 😊"
+- 수치/센서 언급 절대 금지
+- 마크다운(#, **) 사용 금지"""
+                answer = call_llm(qa_prompt, max_tokens=200, use_sonnet=False).strip()  # Haiku 센서없음 테스트
+                return f"{answer}\n\nBOARD_KEEP:{board_text}"
+        else:
+            # selections 형식 → 기존 confirm 흐름
+            session['stage'] = 'confirm'
+            # 정규화에서 뽑은 selected + 상황판 선택 합치기!
+            # "인원수:3인용 소재:패브릭" + "형태:직선형 방수:가능..."
+            _norm_selected = getattr(normalize_query, '_selected', {})
+            _norm_str = ' '.join([f'{k}:{v}' for k,v in _norm_selected.items()])
+            session['selections'] = (_norm_str + ' ' + raw_text).strip()
+            print(f'[선택합산] 정규화:{_norm_str} + 상황판:{raw_text[:30]}')
+
+            # ★ 맥락 저장소에 선택 기록!
+            from context_manager import add_context
+            _sid = session.get('_sid', id(session))
+            add_context(_sid, f'선택: {raw_text[:50]}')
+
+            # 소파인지 저장 (confirm에서 버튼으로 선택)
+            raw_product = session.get('raw_product', '')
+            session['is_desire_product'] = any(kw in raw_product for kw in ['소파', 'sofa', '식탁', '침대', '의자'])
+
+            # 1단계 + 현재 제약 합산
+            step1_keys = session.get('step1_constraints', [])
+            cur_scores = sensor_layer(raw_text, session)
+            cur_keys = [c['constraint'] for c in cur_scores.get('constraint_interventions', [])]
+            all_keys = list(set(step1_keys + cur_keys))
+
+            summary = make_summary(
+                session.get('product_name', ''),
+                raw_text,
+                session.get('raw_product', ''),
+                constraint_keys=all_keys,
+                product_type=session.get('product_type'),
+                context=session.get('context', '')
+            )
+            session['summary'] = summary
+
+            # 확인 버튼 포함
+            return f"{summary}\n\nCONFIRM_BUTTONS"
 
     # ── 1단계: 처음 입력 → VS 체크 먼저 → 센서 → 반의도 체크 → 상황판 ──
 
@@ -1884,6 +2064,24 @@ def decision_engine(user_input, session=None):
     board_precheck = make_board(raw_text, session)
     is_vs = board_precheck.get('type') == 'vs_explain'
 
+    # 브랜드 제품 바로 픽코3 (제품 2개 이하 → 상황판/목록 스킵!)
+    if board_precheck.get('type') == 'direct_product':
+        session['stage'] = 'direct_recommend'
+        session['single_product'] = True
+        session['single_brand'] = board_precheck.get('brand', '')
+        product_name = board_precheck.get('product', raw_text)
+        session['raw_product'] = product_name
+        result = make_recommendation(product_name, '', '', session)
+        return result
+
+    # 브랜드 제품 목록 → 즉시 반환 (empathy 불필요)
+    if board_precheck.get('type') == 'brand_products':
+        session['stage'] = 'brand_products'
+        import json as _json2, re as _re3
+        json_str2 = _json2.dumps(board_precheck, ensure_ascii=False)
+        json_str2 = _re3.sub(r'[-]', '', json_str2)
+        return 'BRAND_PRODUCTS:' + json_str2
+
     if not product['is_product'] and not is_vs:
         return get_out_of_scope_message()
 
@@ -1917,7 +2115,7 @@ def decision_engine(user_input, session=None):
 
     As = scores.get('As', 0)
     anti_type = scores.get('anti_type', '')
-    print(f'[센서] As={As} anti_type={anti_type} S={scores.get("S_type")}')
+    # print(f'[센서] As={As} anti_type={anti_type} S={scores.get("S_type")}')  # 운영 시 비활성화
 
     # ── VS 감지 → vs_cards (센서 체크 전에!) ──
     if not stage:
@@ -1935,8 +2133,9 @@ def decision_engine(user_input, session=None):
             except:
                 session['raw_product'] = original_text
 
-            # 카드 생성 후 반환
-            first_q = get_vs_first_question(vs_scenario)
+            # 카드 생성 후 반환 (사용자 원문 맥락 전달!)
+            context_summary = original_text
+            first_q = get_vs_first_question(vs_scenario, context_summary)
             return first_q if first_q else "VS 모드를 시작할게요! 😊"
 
     # ── 반의도 감지 → anti_dialog (상황판 전에 체크!) ──
@@ -2052,8 +2251,34 @@ Drive: N={drive.get('N')} W={drive.get('W')} Ψ={drive.get('Psi')}
     # 1단계 제약 감지 세션 저장
     step1_interventions = scores.get('constraint_interventions', [])
     session['step1_constraints'] = [c['constraint'] for c in step1_interventions]
-    session['product_name'] = product.get('product_name', raw_text)
+    # _route() 결과 우선 사용 (classify_product보다 정확)
+    # 예: "옷장 찾아줘" → classify_product="옷" (잘림) vs _route="옷장" (정확)
+    try:
+        _routed = _route(raw_text)
+        _clean_product = _routed.get('product', '')
+    except:
+        _clean_product = ''
+    session['product_name'] = _clean_product or product.get('product_name', raw_text)
     session['raw_product']  = raw_text
+
+    # ★ 맥락 저장소에 기록!
+    from context_manager import add_context, clear_context
+    _sid = session.get('_sid', id(session))
+    clear_context(_sid)  # 새 검색 시작 → 이전 맥락 초기화
+    add_context(_sid, f'{raw_text} 검색')
+    # initial_selected 저장 (인원수/소재 등 초기 조건 보존)
+    _init_sel = getattr(normalize_query, '_selected', {})
+    if _init_sel:
+        session['initial_selected'] = _init_sel
+
+    # 브랜드 + 카테고리 → 제품 목록 버튼
+    if board_result['type'] == 'brand_products':
+        session['stage'] = 'brand_products'
+        import json as _json, re as _re2
+        json_str = _json.dumps(board_result, ensure_ascii=False)
+        # 제어문자 제거
+        json_str = _re2.sub(r'[\x08\x0b\x0c\x0e-\x1f]', '', json_str)
+        return 'BRAND_PRODUCTS:' + json_str
 
     # 0구역: 브랜드만 입력 → 되물음
     if board_result['type'] == 'brand_ask':
@@ -2072,8 +2297,10 @@ Drive: N={drive.get('N')} W={drive.get('W')} Ψ={drive.get('Psi')}
     # Context 선택 필요: 버튼형 선택 대기
     if board_result['type'] == 'context_select':
         # 이미 인원수 선택됐으면 2구역 스킵 → 바로 3구역
+        # 단, 소재가 없으면 스킵하지 않음 (소재 선택 필요!)
         selected_now = getattr(normalize_query, '_selected', {})
-        if '인원수' in selected_now:
+        has_material = '소재' in selected_now
+        if '인원수' in selected_now and has_material:
             inowon = selected_now['인원수']
             print(f'[2구역스킵] 인원수={inowon} 이미 선택됨 → 3구역 직행')
             session['context'] = inowon
@@ -2149,6 +2376,8 @@ Drive: N={drive.get('N')} W={drive.get('W')} Ψ={drive.get('Psi')}
             skip_categories=SKIP_CATEGORIES
         )
 
+    # 사전수집 제거 (색상/가격 조건 반영 안 되는 문제)
+    # → 상황판 완료 후 desire_start에서 수집
     return empathy + "\n\n" + board_text
 
 
@@ -2157,29 +2386,65 @@ Drive: N={drive.get('N')} W={drive.get('W')} Ψ={drive.get('Psi')}
 # ===============================
 app = Flask(__name__)
 
-@app.route('/chat', methods=['POST'])
-def chat():
-    data       = request.json or {}
-    user_input = data.get('message', '')
-    session    = data.get('session') or {}
-    if not user_input:
-        return jsonify({'error': 'message required'}), 400
-    result = decision_engine(user_input, session)
-    return jsonify({'response': result, 'session': session})
+# Blueprint 등록
+from routes import bp as routes_bp
+app.register_blueprint(routes_bp)
 
-@app.route('/health', methods=['GET'])
-def health():
-    return jsonify({'status': 'ok', 'version': VERSION})
+# ── Flask 라우트 ──
+# /chat /health /version /desire_start /desire_add_one / → routes.py Blueprint에서 처리
+# proxy_image만 여기서 직접 등록 (routes.py에 없음)
 
-@app.route('/version', methods=['GET'])
-def version():
-    return jsonify({'version': VERSION})
+@app.route('/proxy_image')
+def proxy_image():
+    """네이버 이미지 프록시 (base64 URL)"""
+    import urllib.request as _req
+    import base64 as _b64
+    from flask import Response as _Resp
+    raw = request.args.get('url', '')
+    try:
+        url = _b64.b64decode(raw.encode()).decode()
+    except Exception:
+        url = raw
+    print(f'[프록시URL] {url[:80]}')
+    if not url or 'pstatic.net' not in url:
+        return '', 400
+    try:
+        req = _req.Request(url, headers={
+            'Referer': 'https://shopping.naver.com',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })
+        res = _req.urlopen(req, timeout=5)
+        data = res.read()
+        content_type = res.headers.get('Content-Type', 'image/jpeg')
+        return _Resp(data, content_type=content_type)
+    except Exception as e:
+        print(f'[프록시오류] {e}')
+        return '', 404
 
-@app.route('/', methods=['GET'])
-def index():
-    return send_from_directory('static', 'index.html')
+
+@app.route('/desire_start', methods=['POST'])
+def desire_start():
+    """욕망보드 생성 → 완료까지 기다렸다가 반환"""
+    data        = request.json
+    sess        = data.get('session') or {}
+    raw_product = sess.get('raw_product') or data.get('product', '소파')
+    vs_material = sess.get('vs_material', '')
+    product     = f'{vs_material} {raw_product}' if vs_material and vs_material not in raw_product else raw_product
+
+    # 캐시 제거 → 상황판 조건 완전 반영해서 새로 수집
+    print(f'[desire_start] {product} 수집 시작')
+    # initial_selected (인원수 등) + selections 합쳐서 전달
+    _init_sel = sess.get('initial_selected', {})
+    _init_str = ' '.join([f'{k}:{v}' for k,v in _init_sel.items()]) if _init_sel else ''
+    _selections = sess.get('selections', '')
+    _full_selections = f'{_init_str} {_selections}'.strip()
+    images = search_desire_board_images(product, selections=_full_selections)
+    print(f'[desire_start] {product} → {len(images)}장 완료')
+    return jsonify({'status': 'done', 'images': images, 'set_stage': 'desire_board'})
+
+# desire_add_one, index → routes.py Blueprint에서 처리
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     print(f"Decision Engine v3 시작 - port {port}")
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, threaded=True)

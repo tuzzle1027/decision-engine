@@ -80,6 +80,9 @@ DIRECT_PRODUCTS = {
     '자전거', '킥보드',
     # 가구/인테리어
     '침대', '슈퍼싱글', '싱글침대', '퀸침대', '킹침대', '매트리스', '책상', '의자', '식탁',
+    '게이밍의자', '캠핑의자', '사무의자', '식탁의자', '안마의자',
+    '회전책장', '전면책장', '붙박이장', '드레스룸',
+    '소파베드', '리클라이너', '높이조절책상',
     '옷장', '서랍장', '책장', '화장대', '신발장',
     '수납가구', '거실장', 'TV장',
     '커튼', '블라인드', '러그', '카페트',
@@ -88,6 +91,8 @@ DIRECT_PRODUCTS = {
     '학생책상', '사무책상', '게이밍책상',
     '암막커튼', '린넨커튼', '쉬폰커튼',
     '인테리어소품', '탁상시계', '벽시계',
+    # 유아/생활
+    '독서대', '북스탠드', '책받침대', '책거치대',
 }
 
 CONTEXT_MAP = {
@@ -133,6 +138,41 @@ FURNITURE_CATEGORY_ITEMS = [
 ]
 
 # ── 감지 함수들 ──
+
+def _detect_brand_smart(q):
+    """브랜드 스마트 감지 (3단계)"""
+    # 1단계: brands.json
+    for brand in BRANDS:
+        if brand in q:
+            print(f'[브랜드감지] brands.json → {brand}')
+            return brand
+
+    # 2단계: 네이버 API brand/maker 필드
+    try:
+        import urllib.request, urllib.parse, json as _json, os
+        naver_id = os.environ.get('NAVER_CLIENT_ID', '')
+        naver_secret = os.environ.get('NAVER_CLIENT_SECRET', '')
+        if naver_id:
+            enc = urllib.parse.quote(q)
+            url = f'https://openapi.naver.com/v1/search/shop.json?query={enc}&display=3&filter=1'
+            req = urllib.request.Request(url, headers={
+                'X-Naver-Client-Id': naver_id,
+                'X-Naver-Client-Secret': naver_secret,
+            })
+            res = urllib.request.urlopen(req, timeout=3)
+            items = _json.loads(res.read()).get('items', [])
+            for item in items:
+                brand = item.get('brand', '').strip()
+                maker = item.get('maker', '').strip()
+                detected = brand or maker
+                if detected and len(detected) >= 2 and detected in q:
+                    print(f'[브랜드감지] 네이버API → {detected}')
+                    return detected
+    except Exception as e:
+        print(f'[브랜드감지오류] {e}')
+
+    return ''
+
 def _detect_trend(q):
     for kw in TREND_KEYWORDS:
         if kw in q:
@@ -205,7 +245,7 @@ def route(query: str, selected: dict = None) -> dict:
 
     trend        = _detect_trend(q)
     solution     = _detect_solution(q)
-    brand        = _detect_brand(q)
+    brand        = _detect_brand_smart(q)
     large, subs  = _detect_large_category(q)
     product      = _detect_product(q)
     context      = _detect_context(q)
@@ -233,6 +273,16 @@ def route(query: str, selected: dict = None) -> dict:
             'solution':solution,
             'message':SOLUTION_COPIES.get(solution,'함께 준비해요! 😊'),
             'items':SOLUTION_KEYWORDS.get(solution,[])
+        })
+        return result
+
+    # 브랜드 + 카테고리 제품 → 제품 목록 버튼으로 표시
+    if brand and product:
+        result.update({
+            'zone': 'brand_products',
+            'mode': 'brand_products',
+            'product': product,
+            'brand': brand,
         })
         return result
 

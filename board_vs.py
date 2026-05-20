@@ -35,6 +35,8 @@ def detect_vs(text: str):
         '둘 중', '어느게 나을', '어느것이 나을',
         '뭐가 나을까', '어떤게 나을까',
         '와 중에', '랑 중에',
+        '아니면', '말지', '사야할지', '할지 고민',
+        '살지 고민', '할까 말까',
     ]
     has_strong_signal = any(kw in text for kw in STRONG_VS_SIGNALS)
 
@@ -130,7 +132,7 @@ def generate_situation_cards(product_a: str, product_b: str, context_summary: st
 👶|아이 있을 때|+푹신해서 안전,+따뜻함,-오염 주의|+청소 빠름,-여름 달라붙음
 🌡️|여름/겨울 온도|+사계절 쾌적,-여름 땀 흡수|+겨울도 따뜻,-여름 달라붙음"""
 
-        result = call_llm(prompt, max_tokens=400).strip()
+        result = call_llm(prompt, max_tokens=400, use_sonnet=True).strip()
         cards = []
 
         for line in result.split('\n'):

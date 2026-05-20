@@ -34,4 +34,15 @@ def render_board(items):
 def get_board(context: str = None, choice: str = None) -> str:
     if context == '이케아':
         return render_board(SOFA_IKEA_BOARD)
+
+    # VS에서 소재 선택한 경우 → 해당 소재 CHECKED 표시
+    if choice:
+        board = []
+        for label, options in SOFA_BOARD:
+            if label == '소재' and choice in options:
+                board.append((label, [f'{o} CHECKED:{choice}' if o == choice else o for o in options]))
+            else:
+                board.append((label, options))
+        return render_board(board)
+
     return render_board(SOFA_BOARD)
