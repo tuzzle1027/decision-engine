@@ -1663,7 +1663,7 @@ M3: true
         return jsonify({'error': 'unknown step'}), 400
 
     try:
-        _max_tok = 250 if step == 'q1' else 200
+        _max_tok = 300 if step == 'q1' else 200
         result = call_llm(prompt, max_tokens=_max_tok).strip()
         result = re.sub(r'#{1,3}\s*', '', result).replace('**', '').replace('---', '')
         lines = result.split('\n')
