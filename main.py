@@ -434,7 +434,7 @@ def make_board_new(raw_text, session=None):
         naver_secret = os.environ.get('NAVER_CLIENT_SECRET', '')
         search_q = f'{brand} {product}'
         enc = urllib.parse.quote(search_q)
-        url = f'https://openapi.naver.com/v1/search/shop.json?query={enc}&display=10&filter=1'
+        url = f'https://openapi.naver.com/v1/search/shop.json?query={enc}&display=30&filter=1'
         req = urllib.request.Request(url, headers={
             'X-Naver-Client-Id': naver_id,
             'X-Naver-Client-Secret': naver_secret,
@@ -463,6 +463,7 @@ def make_board_new(raw_text, session=None):
                     'brand': brand,
                     'category': product,
                     'products': prod_list[:6],
+                    'more_products': prod_list[6:],
                     'text': f'{brand} {product} 제품 목록이에요 😊 원하시는 제품을 선택해주세요!',
                 }
         except Exception as e:
